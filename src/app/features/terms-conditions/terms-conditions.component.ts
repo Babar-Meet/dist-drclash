@@ -1,9 +1,10 @@
 import { Component } from '@angular/core';
-import { ComingSoonComponent } from '../../shared/components/coming-soon.component';
+import { AnimateOnScrollDirective } from '../../shared/directives/animate-on-scroll.directive';
 
 @Component({
   selector: 'app-terms-conditions',
-  imports: [ComingSoonComponent],
-  template: `<app-coming-soon title="Terms & Conditions" description="The rules and guidelines for using Dr.Clash." />`
+  imports: [AnimateOnScrollDirective],
+  templateUrl: './terms-conditions.component.html',
+  styleUrl: './terms-conditions.component.css'
 })
 export class TermsConditionsComponent {}

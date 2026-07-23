@@ -1,0 +1,153 @@
+.legal-page {
+  padding: 80px 24px 120px;
+}
+
+.legal-container {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.overline {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #EF4444;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.title {
+  font-family: 'Archivo Black', Impact, 'Arial Black', sans-serif;
+  font-size: 42px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: #0A0A0A;
+  margin: 0 0 8px;
+}
+
+.effective-date {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 14px;
+  color: #525252;
+  margin: 0 0 48px;
+}
+
+.legal-content h2 {
+  font-family: 'Archivo Black', Impact, 'Arial Black', sans-serif;
+  font-size: 22px;
+  line-height: 1.2;
+  color: #0A0A0A;
+  margin: 48px 0 16px;
+}
+
+.legal-content h3 {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0A0A0A;
+  margin: 24px 0 8px;
+}
+
+.legal-content p {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  color: #525252;
+  margin: 0 0 16px;
+}
+
+.legal-content ul {
+  margin: 0 0 16px;
+  padding: 0 0 0 20px;
+}
+
+.legal-content li {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  color: #525252;
+  margin-bottom: 8px;
+}
+
+.legal-content a {
+  color: #EF4444;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.legal-content hr {
+  border: none;
+  border-top: 1px solid #D4D4D4;
+  margin: 48px 0 24px;
+}
+
+.contact-email {
+  font-family: 'Space Mono', monospace;
+  font-size: 14px;
+  color: #0A0A0A;
+  background: #F5F5F5;
+  padding: 12px 16px;
+  display: inline-block;
+}
+
+.footer-note {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 13px;
+  color: #A3A3A3;
+}
+
+[animateOnScroll] {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[animateOnScroll].is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+[animateOnScroll].is-visible .overline {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+[animateOnScroll].is-visible .title {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+[animateOnScroll].is-visible .effective-date {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+[animateOnScroll].is-visible .legal-content > * {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.overline, .title, .effective-date {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.title {
+  transition-delay: 0.05s;
+}
+
+.effective-date {
+  transition-delay: 0.1s;
+}
+
+.legal-content > * {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s,
+              transform 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s;
+}

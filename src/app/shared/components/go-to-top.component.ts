@@ -50,7 +50,7 @@ export class GoToTopComponent {
 
   @HostListener('window:scroll')
   onScroll() {
-    this.visible = window.scrollY > 400;
+    this.visible = window.scrollY > 200;
   }
 
   scrollToTop() {

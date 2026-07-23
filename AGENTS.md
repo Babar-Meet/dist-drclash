@@ -46,3 +46,10 @@ src/app/
 ## Writing
 
 - Never use em dash (-- or —). Use a regular hyphen (-) instead.
+
+## Git Rules
+
+- Never commit or push anything unless explicitly told to by the user.
+- Never use `git add`, `git commit`, `git push`, or any git automation without direct instruction.
+- If the user asks to create or edit files, do the work locally but do not stage or commit it.
+- Wait for the user to say "commit" or "push" before touching git history.

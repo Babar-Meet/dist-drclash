@@ -42,6 +42,11 @@ __screenshots__/
 # Scrap
 /_scrap
 
+# Environment files
+.env
+.env.local
+.env.*.local
+
 # System files
 .DS_Store
 Thumbs.db

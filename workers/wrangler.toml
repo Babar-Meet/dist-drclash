@@ -1,0 +1,21 @@
+name = "drclash-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "drclash-db"
+database_id = ""
+
+# Environment variables (secrets set via wrangler secret put or dashboard)
+[vars]
+APP_URL = ""
+RESEND_SENDER_EMAIL = ""
+GOOGLE_CALLBACK_URL = "https://drclash-api.workers.dev/api/auth/google/callback"
+JWT_SECRET = ""
+GOOGLE_CLIENT_ID = ""
+GOOGLE_CLIENT_SECRET = ""
+RESEND_API_KEY = ""
+ADMIN_USERNAME = ""
+ADMIN_PASSWORD = ""

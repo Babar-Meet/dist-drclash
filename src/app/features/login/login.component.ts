@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
@@ -19,33 +19,33 @@ export class LoginComponent {
   email = '';
   username = '';
   password = '';
-  error = '';
-  success = '';
-  loading = false;
+  error = signal('');
+  success = signal('');
+  loading = signal(false);
 
   toggleMode() {
     this.isRegister = !this.isRegister;
-    this.error = '';
-    this.success = '';
+    this.error.set('');
+    this.success.set('');
   }
 
   async submit() {
-    this.error = '';
-    this.success = '';
-    this.loading = true;
+    this.error.set('');
+    this.success.set('');
+    this.loading.set(true);
     try {
       if (this.isRegister) {
         await this.api.register(this.email, this.username, this.password);
-        this.success = 'Account created. You can now log in.';
+        this.success.set('Account created. You can now log in.');
         this.isRegister = false;
       } else {
         await this.auth.login(this.email, this.password);
         this.router.navigate(['/features-bug']);
       }
     } catch (e: any) {
-      this.error = e.message;
+      this.error.set(e.message);
     }
-    this.loading = false;
+    this.loading.set(false);
   }
 
   googleLogin() {
@@ -54,16 +54,16 @@ export class LoginComponent {
 
   async forgotPassword() {
     if (!this.email) {
-      this.error = 'Enter your email first.';
+      this.error.set('Enter your email first.');
       return;
     }
-    this.loading = true;
+    this.loading.set(true);
     try {
       const { message } = await this.api.forgotPassword(this.email);
-      this.success = message;
+      this.success.set(message);
     } catch (e: any) {
-      this.error = e.message;
+      this.error.set(e.message);
     }
-    this.loading = false;
+    this.loading.set(false);
   }
 }

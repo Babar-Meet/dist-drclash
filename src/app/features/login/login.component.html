@@ -7,11 +7,11 @@
         : 'Sign in to vote on features and bug reports.' }}
     </p>
 
-    @if (error) {
-      <div class="alert alert-error">{{ error }}</div>
+    @if (error()) {
+      <div class="alert alert-error">{{ error() }}</div>
     }
-    @if (success) {
-      <div class="alert alert-success">{{ success }}</div>
+    @if (success()) {
+      <div class="alert alert-success">{{ success() }}</div>
     }
 
     <form (ngSubmit)="submit()" class="login-form">
@@ -32,8 +32,8 @@
         <input type="password" [(ngModel)]="password" name="password" placeholder="Min 6 characters" required />
       </label>
 
-      <button type="submit" class="btn btn-primary btn-full" [disabled]="loading">
-        {{ loading ? 'Please wait...' : isRegister ? 'Create Account' : 'Login' }}
+      <button type="submit" class="btn btn-primary btn-full" [disabled]="loading()">
+        {{ loading() ? 'Please wait...' : isRegister ? 'Create Account' : 'Login' }}
       </button>
     </form>
 

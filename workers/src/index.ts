@@ -157,7 +157,7 @@ app.post('/api/auth/reset-password', async (c) => {
     const { token, password } = await c.req.json();
     if (!token || !password) return c.json({ error: 'Token and password required.' }, 400);
 
-    const payload: any = await verify(token, c.env.JWT_SECRET);
+    const payload: any = await verify(token, c.env.JWT_SECRET, 'HS256');
     if (payload.purpose !== 'password-reset') {
       return c.json({ error: 'Invalid token.' }, 400);
     }

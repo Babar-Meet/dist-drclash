@@ -17,7 +17,7 @@ async function jwtVerify(c: Context, next: Next) {
   const auth = c.req.header('Authorization');
   if (auth?.startsWith('Bearer ')) {
     try {
-      const payload: any = await verify(auth.slice(7), c.env.JWT_SECRET);
+      const payload: any = await verify(auth.slice(7), c.env.JWT_SECRET, 'HS256');
       c.set('user', {
         id: payload.id,
         email: payload.email,

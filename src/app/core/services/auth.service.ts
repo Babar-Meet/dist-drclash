@@ -38,6 +38,17 @@ export class AuthService {
     this.user.set(user);
   }
 
+  async updateProfile(username: string) {
+    const { user } = await this.api.updateProfile(username);
+    this.user.set(user);
+  }
+
+  async deleteAccount() {
+    await this.api.deleteAccount();
+    localStorage.removeItem('token');
+    this.user.set(null);
+  }
+
   logout() {
     localStorage.removeItem('token');
     this.user.set(null);

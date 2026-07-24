@@ -1,6 +1,11 @@
 <nav>
   <div class="nav-container">
-    <a routerLink="/" class="logo">Dr.Clash</a>
+    <div class="nav-left">
+      <a routerLink="/" class="logo">Dr.Clash</a>
+      @if (auth.user() && !menuOpen) {
+        <button class="nav-hello" (click)="openProfile()">Hello, {{ auth.user()?.username }}</button>
+      }
+    </div>
     <button class="hamburger" (click)="toggleMenu()" [class.open]="menuOpen" aria-label="Toggle menu">
       <span></span>
       <span></span>
@@ -18,7 +23,7 @@
         <li class="nav-cta">
           @if (auth.user()) {
             <div class="nav-user">
-              <span class="nav-user-name">{{ auth.user()?.username }}</span>
+              <button class="btn btn-ghost" (click)="openProfile(); closeMenu()">Hello, {{ auth.user()?.username }}</button>
               <button class="btn btn-primary btn-sm" (click)="logout()">Logout</button>
             </div>
           } @else {
@@ -29,3 +34,60 @@
     </div>
   </div>
 </nav>
+
+@if (showProfile()) {
+  <div class="profile-overlay" (click)="closeProfile()">
+    <div class="profile-card" (click)="$event.stopPropagation()">
+      <div class="profile-header">
+        <h2>Profile</h2>
+        <button class="profile-close" (click)="closeProfile()">&times;</button>
+      </div>
+
+      @if (!editName()) {
+        <div class="profile-row">
+          <span class="profile-label">Name</span>
+          <div class="profile-value-row">
+            <span class="profile-value">{{ auth.user()?.username }}</span>
+            <button class="btn btn-ghost btn-xs" (click)="startEditName()">Edit</button>
+          </div>
+        </div>
+      } @else {
+        <div class="profile-row">
+          <span class="profile-label">Name</span>
+          <input [(ngModel)]="nameInput" name="name" placeholder="Your display name" class="profile-input" maxlength="30" />
+          @if (nameError) {
+            <span class="profile-error">{{ nameError }}</span>
+          }
+          <div class="profile-actions">
+            <button class="btn btn-ghost btn-xs" (click)="cancelEdit()">Cancel</button>
+            <button class="btn btn-primary btn-xs" (click)="saveName()" [disabled]="saving() || !nameInput.trim()">
+              {{ saving() ? 'Saving...' : 'Save' }}
+            </button>
+          </div>
+        </div>
+      }
+
+      <hr class="profile-divider" />
+
+      @if (!showDeleteConfirm()) {
+        <button class="btn btn-danger btn-sm profile-delete-btn" (click)="openDeleteConfirm()">
+          Delete account
+        </button>
+      } @else {
+        <div class="delete-confirm">
+          <p class="delete-warning">This will permanently delete your account, all your posts, and votes. This cannot be undone.</p>
+          <div class="profile-actions">
+            <button class="btn btn-ghost btn-xs" (click)="showDeleteConfirm.set(false)">Cancel</button>
+            <button class="btn btn-danger btn-xs" (click)="confirmDelete()" [disabled]="deleting()">
+              {{ deleting() ? 'Deleting...' : 'Yes, delete everything' }}
+            </button>
+          </div>
+        </div>
+      }
+
+      <hr class="profile-divider" />
+
+      <button class="btn btn-ghost btn-sm profile-logout" (click)="logout(); closeProfile()">Logout</button>
+    </div>
+  </div>
+}

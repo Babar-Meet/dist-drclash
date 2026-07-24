@@ -77,6 +77,10 @@ export class ApiService {
     return this.post<{ upvotes: number }>('/api/vote', { post_id: postId, value });
   }
 
+  // Profile
+  updateProfile(username: string) { return this.put<{ user: User }>('/api/auth/profile', { username }); }
+  deleteAccount() { return this.delete<{ ok: boolean }>('/api/auth/account'); }
+
   // Admin
   adminLogin(username: string, password: string) {
     return this.post<{ token: string; user: User }>('/api/admin/login', { username, password });

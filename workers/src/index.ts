@@ -172,6 +172,59 @@ app.post('/api/auth/reset-password', async (c) => {
   }
 });
 
+// Update profile (username)
+app.put('/api/auth/profile', requireAuth, async (c) => {
+  try {
+    const user = getAuthUser(c)!;
+    const { username } = await c.req.json();
+    if (!username || typeof username !== 'string') {
+      return c.json({ error: 'Username required.' }, 400);
+    }
+    const clean = username.trim();
+    if (clean.length < 2 || clean.length > 30) {
+      return c.json({ error: 'Username must be 2-30 characters.' }, 400);
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(clean)) {
+      return c.json({ error: 'Username can only contain letters, numbers, hyphens, and underscores.' }, 400);
+    }
+
+    const taken = await c.env.DB.prepare(
+      'SELECT id FROM users WHERE username = ? AND id != ?'
+    ).bind(clean, user.id).first();
+    if (taken) {
+      return c.json({ error: 'Username already taken.' }, 409);
+    }
+
+    await c.env.DB.prepare('UPDATE users SET username = ? WHERE id = ?')
+      .bind(clean, user.id).run();
+
+    const updated = await c.env.DB.prepare(
+      'SELECT id, email, username, is_admin FROM users WHERE id = ?'
+    ).bind(user.id).first<any>();
+
+    return c.json({ user: { id: updated.id, email: updated.email, username: updated.username, is_admin: !!updated.is_admin } });
+  } catch {
+    return c.json({ error: 'Invalid request.' }, 400);
+  }
+});
+
+// Delete account and all associated data
+app.delete('/api/auth/account', requireAuth, async (c) => {
+  try {
+    const user = getAuthUser(c)!;
+    await c.env.DB.prepare('DELETE FROM votes WHERE user_id = ?').bind(user.id).run();
+    // Delete votes on user's posts first
+    await c.env.DB.prepare(
+      'DELETE FROM votes WHERE post_id IN (SELECT id FROM posts WHERE user_id = ?)'
+    ).bind(user.id).run();
+    await c.env.DB.prepare('DELETE FROM posts WHERE user_id = ?').bind(user.id).run();
+    await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
+    return c.json({ ok: true });
+  } catch {
+    return c.json({ error: 'Failed to delete account.' }, 500);
+  }
+});
+
 // Google OAuth — initiate login
 app.get('/api/auth/google', (c) => {
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');

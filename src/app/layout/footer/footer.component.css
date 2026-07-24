@@ -47,10 +47,10 @@ footer {
   .footer-links {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px 24px;
-    max-width: 280px;
+    gap: 8px 24px;
     margin: 0 auto 16px;
     text-align: center;
+    max-width: 340px;
   }
 
   .footer-links a {

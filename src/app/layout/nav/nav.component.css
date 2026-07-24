@@ -173,10 +173,9 @@ nav {
   .nav-links {
     flex-direction: column;
     align-items: center;
-    gap: 0;
+    gap: 6px;
     height: auto;
     width: 100%;
-    max-width: 320px;
   }
 
   .nav-links li {
@@ -202,7 +201,7 @@ nav {
   .nav-links a:not(.btn) {
     display: inline-flex;
     height: auto;
-    padding: 8px 12px;
+    padding: 8px 16px;
     border: none;
     border-bottom: none;
     font-family: 'Archivo Black', Impact, 'Arial Black', sans-serif;

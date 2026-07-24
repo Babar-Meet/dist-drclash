@@ -28,6 +28,7 @@ export class FeaturesBugComponent implements OnInit {
   submitting = signal(false);
   nextCursor: number | null = null;
   loadingMore = false;
+  private pendingVotes = new Set<number>();
 
   ngOnInit() {
     this.loadPosts();
@@ -65,6 +66,7 @@ export class FeaturesBugComponent implements OnInit {
 
   async vote(postId: number, value: number) {
     if (!this.auth.user()) return;
+    if (this.pendingVotes.has(postId)) return;
     const post = this.posts().find(p => p.id === postId);
     if (!post) return;
 
@@ -75,6 +77,8 @@ export class FeaturesBugComponent implements OnInit {
     const delta = value === 0
       ? -(prev.user_vote ?? 0)
       : (prev.user_vote ? value * 2 : value);
+
+    this.pendingVotes.add(postId);
 
     this.posts.set(this.posts().map(p =>
       p.id === postId
@@ -92,6 +96,8 @@ export class FeaturesBugComponent implements OnInit {
         p.id === postId ? { ...p, upvotes: prev.upvotes, user_vote: prev.user_vote } : p
       ));
     }
+
+    this.pendingVotes.delete(postId);
   }
 
   openForm(type: 'feature' | 'bug') {

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { sign, verify } from 'hono/jwt';
-import { getAuthUser, jwtVerify, requireAuth, requireAdmin } from './middleware/auth';
+import { getAuthUser, jwtVerify, requireAuth, requireUserVote } from './middleware/auth';
 import { strictRateLimit, standardRateLimit } from './middleware/rate-limit';
 
 type Bindings = {
@@ -386,7 +386,7 @@ app.post('/api/posts', requireAuth, async (c) => {
 // VOTE ROUTES
 // ──────────────────────────────────────
 
-app.post('/api/vote', requireAuth, async (c) => {
+app.post('/api/vote', requireUserVote, async (c) => {
   try {
     const user = getAuthUser(c)!;
     const { post_id, value } = await c.req.json();

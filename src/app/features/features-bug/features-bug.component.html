@@ -63,26 +63,28 @@
 
   <div class="posts-list">
     @for (post of posts(); track post.id) {
-      <div class="post-card">
-        <div class="vote-col">
-          <button class="vote-btn up" [class.active]="post.user_vote === 1" (click)="vote(post.id, 1)" [disabled]="!auth.user()">+</button>
-          <span class="vote-count">{{ post.upvotes }}</span>
-          <button class="vote-btn down" [class.active]="post.user_vote === -1" (click)="vote(post.id, -1)" [disabled]="!auth.user()">-</button>
-        </div>
-        <div class="post-content">
-          <div class="post-meta">
-            <span class="post-type" [class.feature]="post.type === 'feature'" [class.bug]="post.type === 'bug'">
+      <div class="card" [class.card-done]="post.status === 'done'">
+        <div class="card-left">
+          <div class="card-labels">
+            <span class="label-type" [class.type-feature]="post.type === 'feature'" [class.type-bug]="post.type === 'bug'" [class.is-done]="post.status === 'done'">
+              @if (post.status === 'done') {
+                <span class="checkmark">&#10003;</span>
+              }
               {{ post.type === 'feature' ? 'Feature' : 'Bug' }}
             </span>
-            @if (post.status === 'done') {
-              <span class="post-status">Done</span>
-            }
           </div>
-          <h3 class="post-title">{{ post.title }}</h3>
-          <p class="post-body">{{ post.content }}</p>
-          <div class="post-footer">
-            <span class="post-author">{{ post.username }}</span>
-            <span class="post-date">{{ post.created_at | date:'mediumDate' }}</span>
+          <div class="card-vote">
+            <button class="vote-btn" [class.vote-up]="post.user_vote === 1" (click)="vote(post.id, 1)" [disabled]="!auth.user()">+</button>
+            <span class="vote-count" [class.voted-up]="post.user_vote === 1" [class.voted-down]="post.user_vote === -1">{{ post.upvotes }}</span>
+            <button class="vote-btn" [class.vote-down]="post.user_vote === -1" (click)="vote(post.id, -1)" [disabled]="!auth.user()">-</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <h3 class="card-title">{{ post.title }}</h3>
+          <p class="card-text">{{ post.content }}</p>
+          <div class="card-footer">
+            <span class="card-author">{{ post.username }}</span>
+            <span class="card-date">{{ post.created_at | date:'mediumDate' }}</span>
           </div>
         </div>
       </div>

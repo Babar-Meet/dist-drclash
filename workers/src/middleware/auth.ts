@@ -48,4 +48,16 @@ function requireAdmin(c: Context, next: Next) {
   return next();
 }
 
-export { getAuthUser, jwtVerify, requireAuth, requireAdmin };
+function requireUserVote(c: Context, next: Next) {
+  const user = getAuthUser(c);
+  if (!user) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  if (user.is_admin) {
+    // Admin tokens have user_id=0, which has no FK in D1
+    return c.json({ error: 'Admin cannot vote.' }, 403);
+  }
+  return next();
+}
+
+export { getAuthUser, jwtVerify, requireAuth, requireAdmin, requireUserVote };

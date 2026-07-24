@@ -70,12 +70,28 @@ export class FeaturesBugComponent implements OnInit {
 
     if (post.user_vote === value) value = 0;
 
+    const prev = { upvotes: post.upvotes, user_vote: post.user_vote };
+
+    const delta = value === 0
+      ? -(prev.user_vote ?? 0)
+      : (prev.user_vote ? value * 2 : value);
+
+    this.posts.set(this.posts().map(p =>
+      p.id === postId
+        ? { ...p, upvotes: Math.max(0, p.upvotes + delta), user_vote: value === 0 ? null : value }
+        : p
+    ));
+
     try {
       const { upvotes } = await this.api.vote(postId, value);
       this.posts.set(this.posts().map(p =>
-        p.id === postId ? { ...p, upvotes, user_vote: value === 0 ? null : value } : p
+        p.id === postId ? { ...p, upvotes } : p
       ));
-    } catch {}
+    } catch {
+      this.posts.set(this.posts().map(p =>
+        p.id === postId ? { ...p, upvotes: prev.upvotes, user_vote: prev.user_vote } : p
+      ));
+    }
   }
 
   openForm(type: 'feature' | 'bug') {

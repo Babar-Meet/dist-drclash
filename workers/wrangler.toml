@@ -12,4 +12,4 @@ database_id = "86b82962-442b-4b7c-a03b-f8bbda99969a"
 [vars]
 APP_URL = "https://drclash.vercel.app"
 RESEND_SENDER_EMAIL = "onboarding@resend.dev"
-GOOGLE_CALLBACK_URL = "https://drclash-api.workers.dev/api/auth/google/callback"
+GOOGLE_CALLBACK_URL = "https://drclash-api.babarmeet86.workers.dev/api/auth/google/callback"

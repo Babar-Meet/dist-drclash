@@ -202,13 +202,13 @@ nav {
   .nav-links a:not(.btn) {
     display: inline-flex;
     height: auto;
-    padding: 10px 16px;
+    padding: 8px 12px;
     border: none;
     border-bottom: none;
     font-family: 'Archivo Black', Impact, 'Arial Black', sans-serif;
-    font-size: 36px;
-    line-height: 1.1;
-    letter-spacing: -0.02em;
+    font-size: 22px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
     color: #525252;
     text-transform: uppercase;
     justify-content: center;

@@ -38,3 +38,23 @@ footer {
   color: #525252;
   margin: 0;
 }
+
+@media (max-width: 768px) {
+  footer {
+    padding: 24px 16px;
+  }
+
+  .footer-links {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 24px;
+    max-width: 280px;
+    margin: 0 auto 16px;
+    text-align: center;
+  }
+
+  .footer-links a {
+    font-size: 11px;
+    padding: 4px 0;
+  }
+}

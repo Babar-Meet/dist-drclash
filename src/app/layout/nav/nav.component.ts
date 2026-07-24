@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, HostListener } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 
 @Component({
@@ -16,5 +16,10 @@ export class NavComponent {
 
   closeMenu() {
     this.menuOpen = false;
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.menuOpen) this.closeMenu();
   }
 }

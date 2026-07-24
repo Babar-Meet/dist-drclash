@@ -138,6 +138,18 @@ nav {
   transform: translateY(-8px) rotate(-45deg);
 }
 
+.nav-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-user-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #A3A3A3;
+}
+
 @media (max-width: 768px) {
   nav {
     padding: 0 16px;

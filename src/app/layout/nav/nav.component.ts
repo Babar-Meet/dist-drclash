@@ -1,5 +1,6 @@
-import { Component, HostListener } from '@angular/core';
+import { Component, HostListener, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-nav',
@@ -8,6 +9,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
   styleUrl: './nav.component.css'
 })
 export class NavComponent {
+  auth = inject(AuthService);
   menuOpen = false;
 
   toggleMenu() {
@@ -16,6 +18,11 @@ export class NavComponent {
 
   closeMenu() {
     this.menuOpen = false;
+  }
+
+  logout() {
+    this.auth.logout();
+    this.closeMenu();
   }
 
   @HostListener('document:keydown.escape')

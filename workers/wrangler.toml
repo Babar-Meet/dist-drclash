@@ -6,16 +6,10 @@ compatibility_date = "2025-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "drclash-db"
-database_id = ""
+database_id = "86b82962-442b-4b7c-a03b-f8bbda99969a"
 
-# Environment variables (secrets set via wrangler secret put or dashboard)
+# Non-sensitive vars (secrets are set via wrangler secret put)
 [vars]
-APP_URL = ""
-RESEND_SENDER_EMAIL = ""
+APP_URL = "https://drclash.vercel.app"
+RESEND_SENDER_EMAIL = "onboarding@resend.dev"
 GOOGLE_CALLBACK_URL = "https://drclash-api.workers.dev/api/auth/google/callback"
-JWT_SECRET = ""
-GOOGLE_CLIENT_ID = ""
-GOOGLE_CLIENT_SECRET = ""
-RESEND_API_KEY = ""
-ADMIN_USERNAME = ""
-ADMIN_PASSWORD = ""

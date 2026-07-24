@@ -1,0 +1,240 @@
+.admin-page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+}
+
+.admin-login-card {
+  max-width: 400px;
+  margin: 80px auto;
+  border: 2px solid #E5E5E5;
+  padding: 32px;
+}
+
+.admin-heading {
+  font-family: 'Archivo Black', Impact, 'Arial Black', sans-serif;
+  font-size: 28px;
+  margin-bottom: 24px;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.field input {
+  height: 44px;
+  background: #FAFAFA;
+  border: 2px solid #D4D4D4;
+  padding: 8px 14px;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 14px;
+  color: #0A0A0A;
+  outline: none;
+}
+
+.field input:focus {
+  border-color: #0A0A0A;
+  box-shadow: 0 0 0 2px #FAFAFA, 0 0 0 4px #0A0A0A;
+}
+
+.alert {
+  padding: 10px 14px;
+  border: 2px solid;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 16px;
+}
+
+.alert-error {
+  background: #FEF2F2;
+  border-color: #EF4444;
+  color: #EF4444;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 24px;
+  border: 2px solid #0A0A0A;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.btn-sm { padding: 6px 14px; font-size: 11px; }
+
+.btn-primary {
+  background: #0A0A0A;
+  color: #FAFAFA;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #EF4444;
+  border-color: #EF4444;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #0A0A0A;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #0A0A0A;
+  color: #FAFAFA;
+}
+
+.btn-success {
+  background: #16A34A;
+  color: #FAFAFA;
+  border-color: #16A34A;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #15803D;
+  border-color: #15803D;
+}
+
+.btn-destructive {
+  background: #EF4444;
+  color: #FAFAFA;
+  border-color: #EF4444;
+}
+
+.btn-destructive:hover:not(:disabled) {
+  background: #DC2626;
+  border-color: #DC2626;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: none;
+  color: #525252;
+}
+
+.btn-ghost:hover { color: #EF4444; }
+
+/* Filter Tabs */
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.filter-chip {
+  background: transparent;
+  border: 2px solid #D4D4D4;
+  padding: 4px 14px;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #525252;
+  cursor: pointer;
+}
+
+.filter-chip.active {
+  background: #0A0A0A;
+  color: #FAFAFA;
+  border-color: #0A0A0A;
+}
+
+.loading {
+  text-align: center;
+  padding: 48px 0;
+  color: #A3A3A3;
+}
+
+/* Table */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #525252;
+  padding: 8px 12px;
+  border-bottom: 2px solid #0A0A0A;
+}
+
+.admin-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #E5E5E5;
+  vertical-align: middle;
+}
+
+.cell-id { color: #A3A3A3; font-size: 12px; }
+.cell-title { font-weight: 700; }
+.cell-votes { font-weight: 700; font-size: 14px; }
+
+.cell-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.type-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border: 2px solid;
+}
+
+.type-badge.feature { border-color: #0A0A0A; color: #0A0A0A; }
+.type-badge.bug { border-color: #EF4444; color: #EF4444; }
+
+.status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border: 2px solid;
+}
+
+.status-badge.current { border-color: #CA8A04; color: #CA8A04; }
+.status-badge.done { border-color: #16A34A; color: #16A34A; }
+
+@media (max-width: 768px) {
+  .admin-table { font-size: 12px; }
+  .admin-table th, .admin-table td { padding: 6px 8px; }
+  .cell-actions { flex-direction: column; }
+}

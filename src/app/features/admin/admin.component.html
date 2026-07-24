@@ -1,0 +1,82 @@
+<div class="admin-page">
+  @if (!auth.user()?.is_admin) {
+    <div class="admin-login-card">
+      <h1 class="admin-heading">Admin Login</h1>
+      @if (loginError) {
+        <div class="alert alert-error">{{ loginError }}</div>
+      }
+      <form (ngSubmit)="adminLogin()" class="login-form">
+        <label class="field">
+          <span class="field-label">Username</span>
+          <input type="text" [(ngModel)]="username" name="username" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Password</span>
+          <input type="password" [(ngModel)]="password" name="password" required />
+        </label>
+        <button type="submit" class="btn btn-primary" [disabled]="loginLoading">
+          {{ loginLoading ? 'Please wait...' : 'Login' }}
+        </button>
+      </form>
+    </div>
+  } @else {
+    <div class="admin-dashboard">
+      <div class="admin-header">
+        <h1 class="admin-heading">Admin Dashboard</h1>
+        <button class="btn btn-ghost" (click)="logout()">Logout</button>
+      </div>
+
+      <div class="filter-tabs">
+        @for (f of [{ key: '', label: 'All' }, { key: 'current', label: 'Current' }, { key: 'done', label: 'Done' }]; track f.key) {
+          <button class="filter-chip" [class.active]="filterStatus === f.key" (click)="setFilter(f.key)">{{ f.label }}</button>
+        }
+      </div>
+
+      @if (loading()) {
+        <div class="loading">Loading...</div>
+      }
+
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Title</th>
+            <th>Author</th>
+            <th>Votes</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (post of posts(); track post.id) {
+            <tr>
+              <td class="cell-id">{{ post.id }}</td>
+              <td>
+                <span class="type-badge" [class.feature]="post.type === 'feature'" [class.bug]="post.type === 'bug'">
+                  {{ post.type }}
+                </span>
+              </td>
+              <td class="cell-title">{{ post.title }}</td>
+              <td>{{ post.username }}</td>
+              <td class="cell-votes">{{ post.upvotes }}</td>
+              <td>
+                <span class="status-badge" [class.current]="post.status === 'current'" [class.done]="post.status === 'done'">
+                  {{ post.status }}
+                </span>
+              </td>
+              <td class="cell-actions">
+                @if (post.status === 'current') {
+                  <button class="btn btn-sm btn-success" (click)="markDone(post.id)">Done</button>
+                } @else {
+                  <button class="btn btn-sm btn-secondary" (click)="reopen(post.id)">Reopen</button>
+                }
+                <button class="btn btn-sm btn-destructive" (click)="deletePost(post.id)">Delete</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

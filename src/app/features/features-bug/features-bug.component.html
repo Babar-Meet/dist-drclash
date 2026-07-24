@@ -1,0 +1,100 @@
+<div class="board-page">
+  <div class="board-header">
+    <h1 class="board-heading">Features / Bug</h1>
+    <p class="board-subtitle">Vote on what matters most to you.</p>
+
+    @if (auth.user()) {
+      <div class="create-actions">
+        <button class="btn btn-primary" (click)="openForm('feature')">+ Feature</button>
+        <button class="btn btn-secondary" (click)="openForm('bug')">+ Bug</button>
+      </div>
+    } @else {
+      <a routerLink="/login" class="btn btn-secondary">Login to vote or suggest</a>
+    }
+  </div>
+
+  <!-- Filter Tabs -->
+  <div class="filter-tabs">
+    @for (tab of [ { key: 'all', label: 'All' }, { key: 'feature', label: 'Features' }, { key: 'bug', label: 'Bugs' }, { key: 'done', label: 'Done' } ]; track tab.key) {
+      <button
+        class="filter-chip"
+        [class.active]="activeFilter() === tab.key"
+        (click)="setFilter(tab.key)"
+      >{{ tab.label }}</button>
+    }
+  </div>
+
+  <!-- Create Post Form -->
+  @if (showForm()) {
+    <div class="overlay" (click)="closeForm()">
+      <div class="form-card" (click)="$event.stopPropagation()">
+        <h2 class="form-heading">New {{ formType === 'feature' ? 'Feature Request' : 'Bug Report' }}</h2>
+        @if (formError) {
+          <div class="alert alert-error">{{ formError }}</div>
+        }
+        <div class="field">
+          <input [(ngModel)]="formTitle" name="title" placeholder="Title" class="form-input" />
+        </div>
+        <div class="field">
+          <textarea [(ngModel)]="formContent" name="content" placeholder="Describe your {{ formType === 'feature' ? 'idea' : 'issue' }} in detail..." class="form-textarea" rows="5"></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" (click)="closeForm()">Cancel</button>
+          <button class="btn btn-primary" (click)="submitPost()" [disabled]="submitting() || !formTitle.trim() || !formContent.trim()">
+            {{ submitting() ? 'Submitting...' : 'Submit' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Loading -->
+  @if (loading()) {
+    <div class="loading">Loading...</div>
+  }
+
+  <!-- Empty State -->
+  @if (!loading() && posts().length === 0) {
+    <div class="empty-state">
+      <p>No {{ activeFilter() === 'done' ? 'completed items' : activeFilter() === 'all' ? 'posts' : activeFilter() + 's' }} yet.</p>
+    </div>
+  }
+
+  <!-- Post Cards -->
+  <div class="posts-list">
+    @for (post of posts(); track post.id) {
+      <div class="post-card">
+        <div class="vote-col">
+          <button class="vote-btn up" [class.active]="post.user_vote === 1" (click)="vote(post.id, 1)" [disabled]="!auth.user()">+</button>
+          <span class="vote-count">{{ post.upvotes }}</span>
+          <button class="vote-btn down" [class.active]="post.user_vote === -1" (click)="vote(post.id, -1)" [disabled]="!auth.user()">-</button>
+        </div>
+        <div class="post-content">
+          <div class="post-meta">
+            <span class="post-type" [class.feature]="post.type === 'feature'" [class.bug]="post.type === 'bug'">
+              {{ post.type === 'feature' ? 'Feature' : 'Bug' }}
+            </span>
+            @if (post.status === 'done') {
+              <span class="post-status">Done</span>
+            }
+          </div>
+          <h3 class="post-title">{{ post.title }}</h3>
+          <p class="post-body">{{ post.content }}</p>
+          <div class="post-footer">
+            <span class="post-author">{{ post.username }}</span>
+            <span class="post-date">{{ post.created_at | date:'mediumDate' }}</span>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Load More -->
+  @if (nextCursor) {
+    <div class="load-more">
+      <button class="btn btn-secondary" (click)="loadMore()" [disabled]="loadingMore">
+        {{ loadingMore ? 'Loading...' : 'Load More' }}
+      </button>
+    </div>
+  }
+</div>

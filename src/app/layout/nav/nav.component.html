@@ -12,7 +12,19 @@
         <li><a routerLink="/features-bug" (click)="closeMenu()" routerLinkActive="active">Features / Bug</a></li>
         <li><a routerLink="/privacy-policy" (click)="closeMenu()" routerLinkActive="active">Privacy Policy</a></li>
         <li><a routerLink="/terms-conditions" (click)="closeMenu()" routerLinkActive="active">Terms & Conditions</a></li>
-        <li class="nav-cta"><a routerLink="/login" (click)="closeMenu()" class="btn btn-primary">Login</a></li>
+        @if (auth.user()?.is_admin) {
+          <li><a routerLink="/admin" (click)="closeMenu()" routerLinkActive="active">Admin</a></li>
+        }
+        <li class="nav-cta">
+          @if (auth.user()) {
+            <div class="nav-user">
+              <span class="nav-user-name">{{ auth.user()?.username }}</span>
+              <button class="btn btn-primary btn-sm" (click)="logout()">Logout</button>
+            </div>
+          } @else {
+            <a routerLink="/login" (click)="closeMenu()" class="btn btn-primary">Login</a>
+          }
+        </li>
       </ul>
     </div>
   </div>

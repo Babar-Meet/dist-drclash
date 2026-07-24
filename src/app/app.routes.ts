@@ -1,4 +1,6 @@
 import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { AuthService } from './core/services/auth.service';
 
 export const routes: Routes = [
   {
@@ -20,6 +22,14 @@ export const routes: Routes = [
   {
     path: 'login',
     loadComponent: () => import('./features/login/login.component').then(m => m.LoginComponent)
+  },
+  {
+    path: 'admin',
+    loadComponent: () => import('./features/admin/admin.component').then(m => m.AdminComponent)
+  },
+  {
+    path: 'oauth-callback',
+    loadComponent: () => import('./features/oauth-callback/oauth-callback.component').then(m => m.OauthCallbackComponent)
   },
   {
     path: '**',

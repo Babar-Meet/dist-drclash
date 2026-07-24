@@ -99,10 +99,13 @@
 }
 
 [animateOnScroll] {
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[animateOnScroll].will-animate {
   opacity: 0;
-  transform: translateY(32px);
-  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateY(20px);
 }
 
 [animateOnScroll].is-visible {
@@ -132,9 +135,9 @@
 
 .overline, .title, .effective-date {
   opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateY(16px);
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .title {
@@ -147,9 +150,9 @@
 
 .legal-content > * {
   opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s,
-              transform 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s;
+  transform: translateY(16px);
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.15s,
+              transform 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.15s;
 }
 
 @media (max-width: 768px) {

@@ -1,0 +1,76 @@
+- generic [ref=f2e2]:
+  - navigation [ref=f2e4]:
+    - generic [ref=f2e5]:
+      - link "Dr.Clash" [ref=f2e6] [cursor=pointer]:
+        - /url: /
+      - list [ref=f2e8]:
+        - listitem [ref=f2e9]:
+          - link "Home" [ref=f2e10] [cursor=pointer]:
+            - /url: /
+        - listitem [ref=f2e11]:
+          - link "Features / Bug" [ref=f2e12] [cursor=pointer]:
+            - /url: /features-bug
+        - listitem [ref=f2e13]:
+          - link "Privacy Policy" [ref=f2e14] [cursor=pointer]:
+            - /url: /privacy-policy
+        - listitem [ref=f2e15]:
+          - link "Terms & Conditions" [ref=f2e16] [cursor=pointer]:
+            - /url: /terms-conditions
+        - listitem [ref=f2e17]:
+          - link "Login" [ref=f2e18] [cursor=pointer]:
+            - /url: /login
+  - main [ref=f2e19]:
+    - generic [ref=f2e29]:
+      - generic [ref=f2e31]:
+        - img "Dr.Clash" [ref=f2e32]
+        - generic [ref=f2e33]:
+          - heading "Dr. Clash" [level=1] [ref=f2e34]
+          - paragraph [ref=f2e35]: Your Ultimate Tool for Clash of Clanstrack stats, get bases, plan armies, play games, and deep dive into stats for only pros.
+          - generic [ref=f2e36]:
+            - link [ref=f2e37] [cursor=pointer]:
+              - /url: "#"
+              - img "Google Play" [ref=f2e38]
+              - text: Play Store
+            - link [ref=f2e39] [cursor=pointer]:
+              - /url: "#"
+              - img "App Store" [ref=f2e40]
+              - text: App Store
+            - link "Learn More" [ref=f2e41] [cursor=pointer]:
+              - /url: "#"
+      - generic [ref=f2e42]:
+        - generic [ref=f2e43]:
+          - generic [ref=f2e44]: Capabilities
+          - heading "Everything you need for Clash of Clans." [level=2] [ref=f2e45]
+        - generic [ref=f2e46]:
+          - generic [ref=f2e47]:
+            - heading "Upgrade Tracker" [level=3] [ref=f2e48]
+            - paragraph [ref=f2e49]: Track every Building, Hero, Pet, and Laboratory upgrade in both Home Village and Builder Base. Max your village efficiently.
+          - generic [ref=f2e50]:
+            - heading "Bases" [level=3] [ref=f2e51]
+            - paragraph [ref=f2e52]: Get free access to Ranked, War/CWL, Farming, Progress, Art, and Impossible bases for your Town Hall.
+          - generic [ref=f2e53]:
+            - heading "Army" [level=3] [ref=f2e54]
+            - paragraph [ref=f2e55]: Get free access to the latest Simple, War, Ranked, Farming, Cookbook, and Impossible armies for your Town Hall.
+          - generic [ref=f2e56]:
+            - heading "Stats for Nerds" [level=3] [ref=f2e57]
+            - paragraph [ref=f2e58]: Free advanced tools with Equipment stats, Ore Calculator, and detailed Troop, Spell, Hero & Pet info. New tools added from community feedback.
+          - generic [ref=f2e59]:
+            - heading "Games" [level=3] [ref=f2e60]
+            - paragraph [ref=f2e61]: Play fun Clash of Clans mini-games like Guess the Home Village, Builder Base, and Clan Capital buildings and troops. More challenges coming soon.
+          - generic [ref=f2e62]:
+            - heading "Home Screen Widgets" [level=3] [ref=f2e63]
+            - paragraph [ref=f2e64]: Get access to live home screen widgets showing active upgrades for all your accounts for free.
+  - contentinfo [ref=f2e21]:
+    - generic [ref=f2e22]:
+      - generic [ref=f2e23]:
+        - link "Home" [ref=f2e24] [cursor=pointer]:
+          - /url: /
+        - link "Features / Bug" [ref=f2e25] [cursor=pointer]:
+          - /url: /features-bug
+        - link "Privacy Policy" [ref=f2e26] [cursor=pointer]:
+          - /url: /privacy-policy
+        - link "Terms & Conditions" [ref=f2e27] [cursor=pointer]:
+          - /url: /terms-conditions
+      - paragraph [ref=f2e28]: © 2026 Dr.Clash. All rights reserved.
+  - generic:
+    - button "Go to top"

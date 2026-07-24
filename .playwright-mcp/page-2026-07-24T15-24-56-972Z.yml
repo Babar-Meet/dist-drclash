@@ -1,0 +1,36 @@
+- generic [ref=f8e2]:
+  - navigation [ref=f8e4]:
+    - generic [ref=f8e5]:
+      - link "Dr.Clash" [ref=f8e6] [cursor=pointer]:
+        - /url: /
+      - list [ref=f8e8]:
+        - listitem [ref=f8e9]:
+          - link "Home" [ref=f8e10] [cursor=pointer]:
+            - /url: /
+        - listitem [ref=f8e11]:
+          - link "Features / Bug" [ref=f8e12] [cursor=pointer]:
+            - /url: /features-bug
+        - listitem [ref=f8e13]:
+          - link "Privacy Policy" [ref=f8e14] [cursor=pointer]:
+            - /url: /privacy-policy
+        - listitem [ref=f8e15]:
+          - link "Terms & Conditions" [ref=f8e16] [cursor=pointer]:
+            - /url: /terms-conditions
+        - listitem [ref=f8e17]:
+          - link "Login" [ref=f8e18] [cursor=pointer]:
+            - /url: /login
+  - main [ref=f8e19]
+  - contentinfo [ref=f8e21]:
+    - generic [ref=f8e22]:
+      - generic [ref=f8e23]:
+        - link "Home" [ref=f8e24] [cursor=pointer]:
+          - /url: /
+        - link "Features / Bug" [ref=f8e25] [cursor=pointer]:
+          - /url: /features-bug
+        - link "Privacy Policy" [ref=f8e26] [cursor=pointer]:
+          - /url: /privacy-policy
+        - link "Terms & Conditions" [ref=f8e27] [cursor=pointer]:
+          - /url: /terms-conditions
+      - paragraph [ref=f8e28]: © 2026 Dr.Clash. All rights reserved.
+  - generic:
+    - button "Go to top"

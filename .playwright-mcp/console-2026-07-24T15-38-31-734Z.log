@@ -1,0 +1,11 @@
+[   63698ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://drclash-api.babarmeet86.workers.dev/api/vote:0
+[   64334ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://drclash-api.babarmeet86.workers.dev/api/vote:0
+[   65444ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://drclash-api.babarmeet86.workers.dev/api/vote:0
+[   65918ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://drclash-api.babarmeet86.workers.dev/api/vote:0
+[  113897ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://drclash-api.babarmeet86.workers.dev/api/vote:0
+[  146575ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://drclash-api.babarmeet86.workers.dev/api/vote:0
+[  157190ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://drclash-api.babarmeet86.workers.dev/api/vote:0
+[  311833ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://drclash-api.babarmeet86.workers.dev/api/vote:0
+[  367598ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://drclash-api.babarmeet86.workers.dev/api/vote:0
+[  380958ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://drclash-api.babarmeet86.workers.dev/api/vote:0
+[  402718ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://drclash-api.babarmeet86.workers.dev/api/auth/login:0

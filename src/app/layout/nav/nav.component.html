@@ -2,7 +2,7 @@
   <div class="nav-container">
     <div class="nav-left">
       <a routerLink="/" class="logo">Dr.Clash</a>
-      @if (auth.user() && !menuOpen) {
+      @if (auth.user()) {
         <button class="nav-hello" (click)="openProfile()">Hello, {{ auth.user()?.username }}</button>
       }
     </div>
@@ -23,7 +23,6 @@
         <li class="nav-cta">
           @if (auth.user()) {
             <div class="nav-user">
-              <button class="btn btn-ghost" (click)="openProfile(); closeMenu()">Hello, {{ auth.user()?.username }}</button>
               <button class="btn btn-primary btn-sm" (click)="logout()">Logout</button>
             </div>
           } @else {

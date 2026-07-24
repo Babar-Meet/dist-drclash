@@ -1,0 +1,69 @@
+- generic [ref=f11e2]:
+  - navigation [ref=f11e4]:
+    - generic [ref=f11e5]:
+      - link "Dr.Clash" [ref=f11e6] [cursor=pointer]:
+        - /url: /
+      - list [ref=f11e8]:
+        - listitem [ref=f11e9]:
+          - link "Home" [ref=f11e10] [cursor=pointer]:
+            - /url: /
+        - listitem [ref=f11e11]:
+          - link "Features / Bug" [ref=f11e12] [cursor=pointer]:
+            - /url: /features-bug
+        - listitem [ref=f11e13]:
+          - link "Privacy Policy" [ref=f11e14] [cursor=pointer]:
+            - /url: /privacy-policy
+        - listitem [ref=f11e15]:
+          - link "Terms & Conditions" [ref=f11e16] [cursor=pointer]:
+            - /url: /terms-conditions
+        - listitem [ref=f11e44]:
+          - link "Admin" [ref=f11e45] [cursor=pointer]:
+            - /url: /admin
+        - listitem [ref=f11e17]:
+          - generic [ref=f11e29]:
+            - generic [ref=f11e30]: admin
+            - button "Logout" [ref=f11e31] [cursor=pointer]
+  - main [ref=f11e19]:
+    - generic [ref=f11e46]:
+      - generic [ref=f11e47]:
+        - heading "Admin Dashboard" [level=1] [ref=f11e48]
+        - button "Logout" [ref=f11e49] [cursor=pointer]
+      - generic [ref=f11e50]:
+        - button "All" [ref=f11e51] [cursor=pointer]
+        - button "Current" [ref=f11e52] [cursor=pointer]
+        - button "Done" [ref=f11e53] [cursor=pointer]
+      - table [ref=f11e54]:
+        - rowgroup [ref=f11e55]:
+          - row [ref=f11e56]:
+            - columnheader "ID" [ref=f11e57]
+            - columnheader "Type" [ref=f11e58]
+            - columnheader "Title" [ref=f11e59]
+            - columnheader "Author" [ref=f11e60]
+            - columnheader "Votes" [ref=f11e61]
+            - columnheader "Status" [ref=f11e62]
+            - columnheader "Actions" [ref=f11e63]
+        - rowgroup [ref=f11e64]:
+          - row [ref=f11e75]:
+            - cell "1" [ref=f11e66]
+            - cell "feature" [ref=f11e67]
+            - cell "Dark mode toggle" [ref=f11e68]
+            - cell "testuser" [ref=f11e69]
+            - cell "1" [ref=f11e70]
+            - cell "done" [ref=f11e76]
+            - cell [ref=f11e77]:
+              - button "Reopen" [ref=f11e78] [cursor=pointer]
+              - button "Delete" [ref=f11e74] [cursor=pointer]
+  - contentinfo [ref=f11e21]:
+    - generic [ref=f11e22]:
+      - generic [ref=f11e23]:
+        - link "Home" [ref=f11e24] [cursor=pointer]:
+          - /url: /
+        - link "Features / Bug" [ref=f11e25] [cursor=pointer]:
+          - /url: /features-bug
+        - link "Privacy Policy" [ref=f11e26] [cursor=pointer]:
+          - /url: /privacy-policy
+        - link "Terms & Conditions" [ref=f11e27] [cursor=pointer]:
+          - /url: /terms-conditions
+      - paragraph [ref=f11e28]: © 2026 Dr.Clash. All rights reserved.
+  - generic:
+    - button "Go to top"

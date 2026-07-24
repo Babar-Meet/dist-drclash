@@ -1,0 +1,66 @@
+- generic [ref=f13e2]:
+  - navigation [ref=f13e4]:
+    - generic [ref=f13e5]:
+      - link "Dr.Clash" [ref=f13e6] [cursor=pointer]:
+        - /url: /
+      - list [ref=f13e8]:
+        - listitem [ref=f13e9]:
+          - link "Home" [ref=f13e10] [cursor=pointer]:
+            - /url: /
+        - listitem [ref=f13e11]:
+          - link "Features / Bug" [ref=f13e12] [cursor=pointer]:
+            - /url: /features-bug
+        - listitem [ref=f13e13]:
+          - link "Privacy Policy" [ref=f13e14] [cursor=pointer]:
+            - /url: /privacy-policy
+        - listitem [ref=f13e15]:
+          - link "Terms & Conditions" [ref=f13e16] [cursor=pointer]:
+            - /url: /terms-conditions
+        - listitem [ref=f13e29]:
+          - link "Admin" [ref=f13e30] [cursor=pointer]:
+            - /url: /admin
+        - listitem [ref=f13e17]:
+          - generic [ref=f13e31]:
+            - generic [ref=f13e32]: admin
+            - button "Logout" [ref=f13e33] [cursor=pointer]
+  - main [ref=f13e19]:
+    - generic [ref=f13e35]:
+      - generic [ref=f13e36]:
+        - heading "Features / Bug" [level=1] [ref=f13e37]
+        - paragraph [ref=f13e38]: Vote on what matters most. Every voice shapes what comes next.
+        - generic [ref=f13e39]:
+          - button "+ Feature" [ref=f13e40] [cursor=pointer]
+          - button "+ Bug" [ref=f13e41] [cursor=pointer]
+      - generic [ref=f13e42]:
+        - button "All" [ref=f13e43] [cursor=pointer]
+        - button "Features" [ref=f13e44] [cursor=pointer]
+        - button "Bugs" [ref=f13e45] [cursor=pointer]
+        - button "Done" [active] [ref=f13e46] [cursor=pointer]
+      - generic [ref=f13e68]:
+        - generic [ref=f13e69]:
+          - button "+" [ref=f13e70] [cursor=pointer]
+          - generic [ref=f13e71]: "1"
+          - button "-" [ref=f13e72] [cursor=pointer]
+        - generic [ref=f13e73]:
+          - generic [ref=f13e74]:
+            - generic [ref=f13e75]: Feature
+            - generic [ref=f13e76]: Done
+          - heading "Dark mode toggle" [level=3] [ref=f13e77]
+          - paragraph [ref=f13e78]: Please add a dark mode option to the site.
+          - generic [ref=f13e79]:
+            - generic [ref=f13e80]: testuser
+            - generic [ref=f13e81]: Jul 24, 2026
+  - contentinfo [ref=f13e21]:
+    - generic [ref=f13e22]:
+      - generic [ref=f13e23]:
+        - link "Home" [ref=f13e24] [cursor=pointer]:
+          - /url: /
+        - link "Features / Bug" [ref=f13e25] [cursor=pointer]:
+          - /url: /features-bug
+        - link "Privacy Policy" [ref=f13e26] [cursor=pointer]:
+          - /url: /privacy-policy
+        - link "Terms & Conditions" [ref=f13e27] [cursor=pointer]:
+          - /url: /terms-conditions
+      - paragraph [ref=f13e28]: © 2026 Dr.Clash. All rights reserved.
+  - generic:
+    - button "Go to top"

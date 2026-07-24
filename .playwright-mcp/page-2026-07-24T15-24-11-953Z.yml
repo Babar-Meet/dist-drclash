@@ -1,0 +1,58 @@
+- generic [ref=f7e2]:
+  - navigation [ref=f7e4]:
+    - generic [ref=f7e5]:
+      - link "Dr.Clash" [ref=f7e6] [cursor=pointer]:
+        - /url: /
+      - list [ref=f7e8]:
+        - listitem [ref=f7e9]:
+          - link "Home" [ref=f7e10] [cursor=pointer]:
+            - /url: /
+        - listitem [ref=f7e11]:
+          - link "Features / Bug" [ref=f7e12] [cursor=pointer]:
+            - /url: /features-bug
+        - listitem [ref=f7e13]:
+          - link "Privacy Policy" [ref=f7e14] [cursor=pointer]:
+            - /url: /privacy-policy
+        - listitem [ref=f7e15]:
+          - link "Terms & Conditions" [ref=f7e16] [cursor=pointer]:
+            - /url: /terms-conditions
+        - listitem [ref=f7e17]:
+          - link "Login" [ref=f7e18] [cursor=pointer]:
+            - /url: /login
+  - main [ref=f7e19]:
+    - generic [ref=f7e31]:
+      - heading "Create Account" [level=1] [ref=f7e32]
+      - paragraph [ref=f7e33]: Join Dr.Clash to vote and suggest features.
+      - generic [ref=f7e34]:
+        - generic [ref=f7e35]:
+          - generic [ref=f7e36]: Email
+          - textbox "Email" [ref=f7e37]:
+            - /placeholder: you@example.com
+        - generic [ref=f7e38]:
+          - generic [ref=f7e39]: Username
+          - textbox "Username" [ref=f7e40]:
+            - /placeholder: Choose a username
+        - generic [ref=f7e41]:
+          - generic [ref=f7e42]: Password
+          - textbox "Password" [ref=f7e43]:
+            - /placeholder: Min 6 characters
+        - button "Create Account" [ref=f7e44] [cursor=pointer]
+      - generic [ref=f7e45]: or
+      - button "Continue with Google" [ref=f7e47] [cursor=pointer]
+      - generic [ref=f7e49]:
+        - text: Already have an account?
+        - button "Login" [active] [ref=f7e50] [cursor=pointer]
+  - contentinfo [ref=f7e21]:
+    - generic [ref=f7e22]:
+      - generic [ref=f7e23]:
+        - link "Home" [ref=f7e24] [cursor=pointer]:
+          - /url: /
+        - link "Features / Bug" [ref=f7e25] [cursor=pointer]:
+          - /url: /features-bug
+        - link "Privacy Policy" [ref=f7e26] [cursor=pointer]:
+          - /url: /privacy-policy
+        - link "Terms & Conditions" [ref=f7e27] [cursor=pointer]:
+          - /url: /terms-conditions
+      - paragraph [ref=f7e28]: © 2026 Dr.Clash. All rights reserved.
+  - generic:
+    - button "Go to top"

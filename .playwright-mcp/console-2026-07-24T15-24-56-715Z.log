@@ -1,0 +1,2 @@
+[   10576ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://drclash.vercel.app/login:0
+[   68614ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://drclash-api.babarmeet86.workers.dev/api/posts:0

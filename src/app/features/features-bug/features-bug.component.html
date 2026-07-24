@@ -1,7 +1,7 @@
 <div class="board-page">
   <div class="board-header">
     <h1 class="board-heading">Features / Bug</h1>
-    <p class="board-subtitle">Vote on what matters most to you.</p>
+    <p class="board-subtitle">Vote on what matters most. Every voice shapes what comes next.</p>
 
     @if (auth.user()) {
       <div class="create-actions">
@@ -13,7 +13,6 @@
     }
   </div>
 
-  <!-- Filter Tabs -->
   <div class="filter-tabs">
     @for (tab of [ { key: 'all', label: 'All' }, { key: 'feature', label: 'Features' }, { key: 'bug', label: 'Bugs' }, { key: 'done', label: 'Done' } ]; track tab.key) {
       <button
@@ -24,16 +23,15 @@
     }
   </div>
 
-  <!-- Create Post Form -->
   @if (showForm()) {
     <div class="overlay" (click)="closeForm()">
       <div class="form-card" (click)="$event.stopPropagation()">
-        <h2 class="form-heading">New {{ formType === 'feature' ? 'Feature Request' : 'Bug Report' }}</h2>
+        <h2 class="form-heading">{{ formType === 'feature' ? 'New Feature' : 'Report Bug' }}</h2>
         @if (formError) {
           <div class="alert alert-error">{{ formError }}</div>
         }
         <div class="field">
-          <input [(ngModel)]="formTitle" name="title" placeholder="Title" class="form-input" />
+          <input [(ngModel)]="formTitle" name="title" placeholder="Give it a clear title" class="form-input" />
         </div>
         <div class="field">
           <textarea [(ngModel)]="formContent" name="content" placeholder="Describe your {{ formType === 'feature' ? 'idea' : 'issue' }} in detail..." class="form-textarea" rows="5"></textarea>
@@ -48,19 +46,21 @@
     </div>
   }
 
-  <!-- Loading -->
   @if (loading()) {
     <div class="loading">Loading...</div>
   }
 
-  <!-- Empty State -->
   @if (!loading() && posts().length === 0) {
     <div class="empty-state">
-      <p>No {{ activeFilter() === 'done' ? 'completed items' : activeFilter() === 'all' ? 'posts' : activeFilter() + 's' }} yet.</p>
+      @if (activeFilter() === 'done') {
+        <p>Nothing completed yet</p>
+      } @else {
+        <p>No {{ activeFilter() === 'feature' ? 'feature requests' : activeFilter() === 'bug' ? 'bug reports' : 'posts' }} yet</p>
+        <p class="empty-hint">Be the first to share your idea.</p>
+      }
     </div>
   }
 
-  <!-- Post Cards -->
   <div class="posts-list">
     @for (post of posts(); track post.id) {
       <div class="post-card">
@@ -89,7 +89,6 @@
     }
   </div>
 
-  <!-- Load More -->
   @if (nextCursor) {
     <div class="load-more">
       <button class="btn btn-secondary" (click)="loadMore()" [disabled]="loadingMore">

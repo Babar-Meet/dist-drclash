@@ -391,11 +391,11 @@ app.post('/api/vote', requireAuth, async (c) => {
     const user = getAuthUser(c)!;
     const { post_id, value } = await c.req.json();
 
-    if (!post_id || !value) {
+    if (!post_id || value === undefined || value === null) {
       return c.json({ error: 'post_id and value required.' }, 400);
     }
-    if (value !== 1 && value !== -1) {
-      return c.json({ error: 'Value must be 1 (upvote) or -1 (downvote).' }, 400);
+    if (value !== 0 && value !== 1 && value !== -1) {
+      return c.json({ error: 'Value must be -1, 0, or 1.' }, 400);
     }
 
     // Check post exists
@@ -410,7 +410,15 @@ app.post('/api/vote', requireAuth, async (c) => {
       'SELECT id, value FROM votes WHERE post_id = ? AND user_id = ?'
     ).bind(post_id, user.id).first<any>();
 
-    if (existing) {
+    if (value === 0) {
+      // Remove any existing vote
+      if (existing) {
+        await c.env.DB.prepare('DELETE FROM votes WHERE id = ?').bind(existing.id).run();
+        await c.env.DB.prepare(
+          'UPDATE posts SET upvotes = upvotes - ? WHERE id = ?'
+        ).bind(existing.value, post_id).run();
+      }
+    } else if (existing) {
       if (existing.value === value) {
         // Same vote — remove it (toggle off)
         await c.env.DB.prepare('DELETE FROM votes WHERE id = ?').bind(existing.id).run();

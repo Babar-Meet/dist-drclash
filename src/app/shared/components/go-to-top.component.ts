@@ -43,6 +43,15 @@ import { Component, HostListener } from '@angular/core';
       background: #0A0A0A;
       color: #FAFAFA;
     }
+
+    @media (max-width: 768px) {
+      .go-to-top {
+        bottom: 16px;
+        right: 16px;
+        width: 40px;
+        height: 40px;
+      }
+    }
   `]
 })
 export class GoToTopComponent {

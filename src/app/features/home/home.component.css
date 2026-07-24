@@ -222,3 +222,57 @@
   opacity: 1;
   transform: translateY(0);
 }
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 48px 16px 40px;
+  }
+
+  .hero-layout {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .hero-logo {
+    width: 140px;
+    height: 140px;
+  }
+
+  .hero-title {
+    font-size: 32px;
+  }
+
+  .hero-lede {
+    font-size: 16px;
+    max-width: 100%;
+  }
+
+  .hero-actions {
+    justify-content: center;
+  }
+
+  .features {
+    padding: 0 16px 64px;
+  }
+
+  .features-header {
+    margin-bottom: 32px;
+  }
+
+  .subhead {
+    font-size: 26px;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .card {
+    padding: 20px;
+  }
+
+  .card-title {
+    font-size: 20px;
+  }
+}

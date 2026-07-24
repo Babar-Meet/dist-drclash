@@ -1,12 +1,17 @@
 <nav>
   <div class="nav-container">
     <a routerLink="/" class="logo">Dr.Clash</a>
-    <ul class="nav-links">
-      <li><a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Home</a></li>
-      <li><a routerLink="/features-bug" routerLinkActive="active">Features / Bug</a></li>
-      <li><a routerLink="/privacy-policy" routerLinkActive="active">Privacy Policy</a></li>
-      <li><a routerLink="/terms-conditions" routerLinkActive="active">Terms & Conditions</a></li>
-      <li><a routerLink="/login" class="btn btn-primary btn-sm">Login</a></li>
+    <button class="hamburger" (click)="toggleMenu()" [class.open]="menuOpen" aria-label="Toggle menu">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    <ul class="nav-links" [class.open]="menuOpen">
+      <li><a routerLink="/" (click)="closeMenu()" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Home</a></li>
+      <li><a routerLink="/features-bug" (click)="closeMenu()" routerLinkActive="active">Features / Bug</a></li>
+      <li><a routerLink="/privacy-policy" (click)="closeMenu()" routerLinkActive="active">Privacy Policy</a></li>
+      <li><a routerLink="/terms-conditions" (click)="closeMenu()" routerLinkActive="active">Terms & Conditions</a></li>
+      <li><a routerLink="/login" (click)="closeMenu()" class="btn btn-primary btn-sm">Login</a></li>
     </ul>
   </div>
 </nav>

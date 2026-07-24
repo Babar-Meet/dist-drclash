@@ -151,3 +151,23 @@
   transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s,
               transform 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s;
 }
+
+@media (max-width: 768px) {
+  .legal-page {
+    padding: 48px 16px 80px;
+  }
+
+  .title {
+    font-size: 28px;
+  }
+
+  .legal-content h2 {
+    font-size: 18px;
+    margin: 32px 0 12px;
+  }
+
+  .legal-content p,
+  .legal-content li {
+    font-size: 14px;
+  }
+}

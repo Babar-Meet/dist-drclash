@@ -116,8 +116,11 @@ app.post('/api/auth/login', async (c) => {
       'SELECT id, email, username, password_hash, is_admin FROM users WHERE email = ?'
     ).bind(email).first<any>();
 
-    if (!user || !user.password_hash) {
+    if (!user) {
       return c.json({ error: 'Invalid email or password.' }, 401);
+    }
+    if (!user.password_hash) {
+      return c.json({ error: 'This account uses Google sign-in. Sign in with Google or use Forgot Password to set a password.', code: 'oauth_only' }, 401);
     }
 
     const valid = await pbkdf2Compare(password, user.password_hash);
@@ -675,6 +678,55 @@ app.post('/api/admin/posts/:id/reply', requireAuth, async (c) => {
     return c.json({ reply }, 201);
   } catch (e) {
     console.error('Admin reply error:', e);
+    return c.json({ error: 'Invalid request.' }, 400);
+  }
+});
+
+// Admin: Edit a reply
+app.put('/api/admin/replies/:id', requireAuth, async (c) => {
+  try {
+    const user = getAuthUser(c)!;
+    if (!user.is_admin) return c.json({ error: 'Forbidden.' }, 403);
+
+    const id = parseInt(c.req.param('id') || '0');
+    if (!id) return c.json({ error: 'Invalid reply ID.' }, 400);
+
+    const { content } = await c.req.json();
+    if (!content || typeof content !== 'string') return c.json({ error: 'Content required.' }, 400);
+    const clean = content.trim();
+    if (clean.length < 1) return c.json({ error: 'Content required.' }, 400);
+    if (clean.length > 50000) return c.json({ error: 'Content too long.' }, 400);
+
+    await c.env.DB.prepare('UPDATE replies SET content = ? WHERE id = ?')
+      .bind(clean, id).run();
+
+    const reply = await c.env.DB.prepare(
+      'SELECT id, post_id, content, created_at FROM replies WHERE id = ?'
+    ).bind(id).first();
+
+    if (!reply) return c.json({ error: 'Reply not found.' }, 404);
+
+    return c.json({ reply });
+  } catch (e) {
+    console.error('Admin edit reply error:', e);
+    return c.json({ error: 'Invalid request.' }, 400);
+  }
+});
+
+// Admin: Delete a reply
+app.delete('/api/admin/replies/:id', requireAuth, async (c) => {
+  try {
+    const user = getAuthUser(c)!;
+    if (!user.is_admin) return c.json({ error: 'Forbidden.' }, 403);
+
+    const id = parseInt(c.req.param('id') || '0');
+    if (!id) return c.json({ error: 'Invalid reply ID.' }, 400);
+
+    await c.env.DB.prepare('DELETE FROM replies WHERE id = ?').bind(id).run();
+
+    return c.json({ ok: true });
+  } catch (e) {
+    console.error('Admin delete reply error:', e);
     return c.json({ error: 'Invalid request.' }, 400);
   }
 });

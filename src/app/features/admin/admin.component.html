@@ -84,7 +84,27 @@
                   @if (post.replies && post.replies.length > 0) {
                     <div class="reply-preview">
                       @for (r of post.replies; track r.id) {
-                        <p class="reply-preview-text">{{ r.content }}</p>
+                        <div class="reply-item">
+                          @if (editingReply[r.id] !== undefined) {
+                            <div class="reply-edit-row">
+                              <input
+                                type="text"
+                                [(ngModel)]="editingReply[r.id]"
+                                name="edit_reply_{{ r.id }}"
+                                class="reply-input"
+                                (keydown.enter)="editReply(r.id)"
+                              />
+                              <button class="btn btn-sm btn-success" (click)="editReply(r.id)" [disabled]="savingReply.has(r.id)">{{ savingReply.has(r.id) ? '...' : 'Save' }}</button>
+                              <button class="btn btn-sm btn-secondary" (click)="cancelEditReply(r.id)">Cancel</button>
+                            </div>
+                          } @else {
+                            <p class="reply-preview-text">{{ r.content }}</p>
+                            <div class="reply-actions">
+                              <button class="btn btn-sm btn-primary" (click)="startEditReply(r.id, r.content)">Edit</button>
+                              <button class="btn btn-sm btn-destructive" (click)="deleteReply(r.id)" [disabled]="deletingReply.has(r.id)">{{ deletingReply.has(r.id) ? '...' : 'Delete' }}</button>
+                            </div>
+                          }
+                        </div>
                       }
                     </div>
                   }

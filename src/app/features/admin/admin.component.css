@@ -249,14 +249,51 @@
   margin-bottom: 6px;
 }
 
+.reply-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
 .reply-preview-text {
+  flex: 1;
   font-size: 11px;
   color: #525252;
   line-height: 1.5;
-  margin: 0 0 4px 0;
+  margin: 0;
   padding: 4px 8px;
   background: #F5F5F5;
   border-left: 2px solid #0A0A0A;
+}
+
+.reply-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.reply-actions .btn-sm {
+  padding: 2px 8px;
+  font-size: 9px;
+}
+
+.reply-edit-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  width: 100%;
+}
+
+.reply-edit-row .reply-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.reply-edit-row .btn-sm {
+  padding: 2px 8px;
+  font-size: 9px;
+  white-space: nowrap;
 }
 
 .reply-input-row {

@@ -166,3 +166,24 @@
   font-size: 13px;
   padding: 0;
 }
+
+.link-inline {
+  font-size: 12px;
+  color: #EF4444;
+  text-transform: none;
+  letter-spacing: 0;
+  text-decoration: underline;
+}
+
+.oauth-hint {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #EF4444;
+  font-weight: 400;
+}

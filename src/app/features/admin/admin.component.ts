@@ -26,6 +26,9 @@ export class AdminComponent implements OnInit {
   replyTexts: Record<number, string> = {};
   sendingReplies = new Set<number>();
   clearingDone = signal(false);
+  editingReply: Record<number, string> = {};
+  savingReply = new Set<number>();
+  deletingReply = new Set<number>();
 
   ngOnInit() {
     if (this.auth.user()?.is_admin) {
@@ -83,6 +86,40 @@ export class AdminComponent implements OnInit {
       alert(e.message);
     }
     this.sendingReplies.delete(postId);
+  }
+
+  async editReply(replyId: number) {
+    const content = this.editingReply[replyId]?.trim();
+    if (!content) return;
+    this.savingReply.add(replyId);
+    try {
+      await this.api.adminEditReply(replyId, content);
+      delete this.editingReply[replyId];
+      this.loadPosts();
+    } catch (e: any) {
+      alert(e.message);
+    }
+    this.savingReply.delete(replyId);
+  }
+
+  startEditReply(replyId: number, currentContent: string) {
+    this.editingReply[replyId] = currentContent;
+  }
+
+  cancelEditReply(replyId: number) {
+    delete this.editingReply[replyId];
+  }
+
+  async deleteReply(replyId: number) {
+    if (!confirm('Delete this reply permanently?')) return;
+    this.deletingReply.add(replyId);
+    try {
+      await this.api.adminDeleteReply(replyId);
+      this.loadPosts();
+    } catch (e: any) {
+      alert(e.message);
+    }
+    this.deletingReply.delete(replyId);
   }
 
   async clearDone() {

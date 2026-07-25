@@ -8,7 +8,16 @@
     </p>
 
     @if (error()) {
-      <div class="alert alert-error">{{ error() }}</div>
+      <div class="alert alert-error">
+        {{ error() }}
+        @if (oauthOnly()) {
+          <div class="oauth-hint">
+            <button class="link-btn link-inline" (click)="googleLogin()">Sign in with Google</button>
+            or
+            <button class="link-btn link-inline" (click)="forgotPassword()">reset your password</button>
+          </div>
+        }
+      </div>
     }
     @if (success()) {
       <div class="alert alert-success">{{ success() }}</div>

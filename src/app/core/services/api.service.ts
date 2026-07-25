@@ -50,7 +50,11 @@ export class ApiService {
       body: body ? JSON.stringify(body) : undefined,
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Request failed');
+    if (!res.ok) {
+      const err = new Error(data.error || 'Request failed');
+      if (data.code) (err as any).code = data.code;
+      throw err;
+    }
     return data;
   }
 
@@ -101,6 +105,8 @@ export class ApiService {
   adminReopen(postId: number) { return this.put<{ ok: boolean }>(`/api/admin/posts/${postId}/reopen`); }
   adminDeletePost(postId: number) { return this.delete<{ ok: boolean }>(`/api/admin/posts/${postId}`); }
   adminReply(postId: number, content: string) { return this.post<{ reply: Reply }>(`/api/admin/posts/${postId}/reply`, { content }); }
+  adminEditReply(replyId: number, content: string) { return this.put<{ reply: Reply }>(`/api/admin/replies/${replyId}`, { content }); }
+  adminDeleteReply(replyId: number) { return this.delete<{ ok: boolean }>(`/api/admin/replies/${replyId}`); }
   adminClearDone() { return this.delete<{ ok: boolean }>('/api/admin/posts/done'); }
 
   // Replies

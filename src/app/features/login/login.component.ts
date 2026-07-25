@@ -22,16 +22,19 @@ export class LoginComponent {
   error = signal('');
   success = signal('');
   loading = signal(false);
+  oauthOnly = signal(false);
 
   toggleMode() {
     this.isRegister = !this.isRegister;
     this.error.set('');
     this.success.set('');
+    this.oauthOnly.set(false);
   }
 
   async submit() {
     this.error.set('');
     this.success.set('');
+    this.oauthOnly.set(false);
     this.loading.set(true);
     try {
       if (this.isRegister) {
@@ -44,6 +47,7 @@ export class LoginComponent {
       }
     } catch (e: any) {
       this.error.set(e.message);
+      if (e.code === 'oauth_only') this.oauthOnly.set(true);
     }
     this.loading.set(false);
   }
@@ -61,6 +65,7 @@ export class LoginComponent {
     try {
       const { message } = await this.api.forgotPassword(this.email);
       this.success.set(message);
+      this.oauthOnly.set(false);
     } catch (e: any) {
       this.error.set(e.message);
     }

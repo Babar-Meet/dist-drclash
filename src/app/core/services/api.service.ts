@@ -25,7 +25,7 @@ export interface Post {
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private getToken(): string | null {
-    return localStorage.getItem('token');
+    return sessionStorage.getItem('token');
   }
 
   private headers(): Record<string, string> {
@@ -56,7 +56,7 @@ export class ApiService {
   register(email: string, username: string, password: string) { return this.post<{ ok: boolean }>('/api/auth/register', { email, username, password }); }
   me() { return this.get<{ user: User | null }>('/api/auth/me'); }
   forgotPassword(email: string) { return this.post<{ message: string }>('/api/auth/forgot-password', { email }); }
-  resetPassword(token: string, password: string) { return this.post<{ ok: boolean }>('/api/auth/reset-password', { token, password }); }
+  resetPassword(token: string, password: string) { return this.post<{ message: string }>('/api/auth/reset-password', { token, password }); }
 
   // Posts
   getPosts(type?: string, status?: string, cursor?: number) {

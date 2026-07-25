@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 import { sign, verify } from 'hono/jwt';
-import { getAuthUser, jwtVerify, requireAuth, requireUserVote } from './middleware/auth';
+import { getAuthUser, jwtVerify, requireAuth, requireUserAccount, requireUserVote } from './middleware/auth';
 import { strictRateLimit, standardRateLimit } from './middleware/rate-limit';
 
 type Bindings = {
@@ -19,8 +18,25 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-app.use('/*', cors({ origin: '*', credentials: true }));
+app.use('/*', async (c, next) => {
+  const origin = c.env.APP_URL || 'https://drclash.vercel.app';
+  c.header('Access-Control-Allow-Origin', origin);
+  c.header('Access-Control-Allow-Credentials', 'true');
+  c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (c.req.method === 'OPTIONS') return c.body(null, 204);
+  await next();
+});
 app.use('/api/*', jwtVerify);
+
+// Security headers
+app.use('/*', async (c, next) => {
+  c.header('X-Frame-Options', 'DENY');
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  c.header('X-XSS-Protection', '0');
+  await next();
+});
 
 // ──────────────────────────────────────
 // Rate limited endpoints
@@ -28,6 +44,8 @@ app.use('/api/*', jwtVerify);
 app.use('/api/auth/login', strictRateLimit);
 app.use('/api/auth/register', strictRateLimit);
 app.use('/api/auth/forgot-password', strictRateLimit);
+app.use('/api/admin/login', strictRateLimit);
+app.use('/api/auth/reset-password', strictRateLimit);
 app.use('/api/posts', standardRateLimit);
 app.use('/api/vote', standardRateLimit);
 
@@ -50,26 +68,38 @@ app.post('/api/auth/register', async (c) => {
     if (password.length < 6) {
       return c.json({ error: 'Password must be at least 6 characters.' }, 400);
     }
+    if (email.length > 254) return c.json({ error: 'Email too long.' }, 400);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return c.json({ error: 'Invalid email format.' }, 400);
+    }
+    const cleanUsername = username.trim();
+    if (cleanUsername.length < 2 || cleanUsername.length > 30) {
+      return c.json({ error: 'Username must be 2-30 characters.' }, 400);
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(cleanUsername)) {
+      return c.json({ error: 'Username can only contain letters, numbers, hyphens, and underscores.' }, 400);
+    }
 
     const existing = await c.env.DB.prepare(
       'SELECT id FROM users WHERE email = ? OR username = ?'
-    ).bind(email, username).first();
+    ).bind(email, cleanUsername).first();
 
     if (existing) {
       return c.json({ error: 'Email or username already taken.' }, 409);
     }
 
-    const hash = await bcryptHash(password);
+    const hash = await pbkdf2Hash(password);
     const { success } = await c.env.DB.prepare(
       'INSERT INTO users (email, username, password_hash) VALUES (?, ?, ?)'
-    ).bind(email, username, hash).run();
+    ).bind(email, cleanUsername, hash).run();
 
     if (!success) {
       return c.json({ error: 'Failed to create account.' }, 500);
     }
 
     return c.json({ ok: true, message: 'Account created.' }, 201);
-  } catch {
+  } catch (e) {
+    console.error('Register error:', e);
     return c.json({ error: 'Invalid request.' }, 400);
   }
 });
@@ -90,13 +120,13 @@ app.post('/api/auth/login', async (c) => {
       return c.json({ error: 'Invalid email or password.' }, 401);
     }
 
-    const valid = await bcryptCompare(password, user.password_hash);
+    const valid = await pbkdf2Compare(password, user.password_hash);
     if (!valid) {
       return c.json({ error: 'Invalid email or password.' }, 401);
     }
 
     const token = await sign(
-      { id: user.id, email: user.email, username: user.username, is_admin: !!user.is_admin },
+      { id: user.id, email: user.email, username: user.username, is_admin: !!user.is_admin, exp: Math.floor(Date.now() / 1000) + 604800, iat: Math.floor(Date.now() / 1000) },
       c.env.JWT_SECRET
     );
 
@@ -104,7 +134,8 @@ app.post('/api/auth/login', async (c) => {
       token,
       user: { id: user.id, email: user.email, username: user.username, is_admin: !!user.is_admin }
     });
-  } catch {
+  } catch (e) {
+    console.error('Login error:', e);
     return c.json({ error: 'Invalid request.' }, 400);
   }
 });
@@ -146,7 +177,8 @@ app.post('/api/auth/forgot-password', async (c) => {
     });
 
     return c.json({ message: 'If this email is registered, a reset link has been sent.' });
-  } catch {
+  } catch (e) {
+    console.error('Forgot password error:', e);
     return c.json({ message: 'Service temporarily unavailable. Please try again later.' }, 503);
   }
 });
@@ -162,18 +194,19 @@ app.post('/api/auth/reset-password', async (c) => {
       return c.json({ error: 'Invalid token.' }, 400);
     }
 
-    const hash = await bcryptHash(password);
+    const hash = await pbkdf2Hash(password);
     await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
       .bind(hash, payload.id).run();
 
     return c.json({ ok: true, message: 'Password updated.' });
-  } catch {
+  } catch (e) {
+    console.error('Reset password error:', e);
     return c.json({ error: 'Invalid or expired token.' }, 400);
   }
 });
 
 // Update profile (username)
-app.put('/api/auth/profile', requireAuth, async (c) => {
+app.put('/api/auth/profile', requireAuth, requireUserAccount, async (c) => {
   try {
     const user = getAuthUser(c)!;
     const { username } = await c.req.json();
@@ -203,13 +236,14 @@ app.put('/api/auth/profile', requireAuth, async (c) => {
     ).bind(user.id).first<any>();
 
     return c.json({ user: { id: updated.id, email: updated.email, username: updated.username, is_admin: !!updated.is_admin } });
-  } catch {
+  } catch (e) {
+    console.error('Profile update error:', e);
     return c.json({ error: 'Invalid request.' }, 400);
   }
 });
 
 // Delete account and all associated data
-app.delete('/api/auth/account', requireAuth, async (c) => {
+app.delete('/api/auth/account', requireAuth, requireUserAccount, async (c) => {
   try {
     const user = getAuthUser(c)!;
     await c.env.DB.prepare('DELETE FROM votes WHERE user_id = ?').bind(user.id).run();
@@ -220,19 +254,25 @@ app.delete('/api/auth/account', requireAuth, async (c) => {
     await c.env.DB.prepare('DELETE FROM posts WHERE user_id = ?').bind(user.id).run();
     await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
     return c.json({ ok: true });
-  } catch {
+  } catch (e) {
+    console.error('Delete account error:', e);
     return c.json({ error: 'Failed to delete account.' }, 500);
   }
 });
 
 // Google OAuth — initiate login
-app.get('/api/auth/google', (c) => {
+app.get('/api/auth/google', async (c) => {
+  const state = crypto.randomUUID();
+  await c.env.DB.prepare(
+    'INSERT INTO rate_limits (key, window_key, count, expires_at) VALUES (?, ?, 1, ?) ON CONFLICT(key, window_key) DO NOTHING'
+  ).bind(`oauth_state:${state}`, 0, Math.floor(Date.now() / 1000) + 300).run();
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   url.searchParams.set('client_id', c.env.GOOGLE_CLIENT_ID);
   url.searchParams.set('redirect_uri', c.env.GOOGLE_CALLBACK_URL);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', 'openid email profile');
   url.searchParams.set('access_type', 'offline');
+  url.searchParams.set('state', state);
   return c.redirect(url.toString());
 });
 
@@ -241,6 +281,14 @@ app.get('/api/auth/google/callback', async (c) => {
   try {
     const code = c.req.query('code');
     if (!code) return c.json({ error: 'No authorization code.' }, 400);
+    const state = c.req.query('state');
+    if (!state) return c.json({ error: 'Missing state parameter.' }, 400);
+    const stateRow = await c.env.DB.prepare(
+      'SELECT count FROM rate_limits WHERE key = ? AND window_key = ?'
+    ).bind(`oauth_state:${state}`, 0).first();
+    if (!stateRow) return c.json({ error: 'Invalid or expired state.' }, 400);
+    await c.env.DB.prepare('DELETE FROM rate_limits WHERE key = ? AND window_key = ?')
+      .bind(`oauth_state:${state}`, 0).run();
 
     // Exchange code for tokens
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -305,13 +353,14 @@ app.get('/api/auth/google/callback', async (c) => {
     }
 
     const token = await sign(
-      { id: user.id, email: user.email, username: user.username, is_admin: !!user.is_admin },
+      { id: user.id, email: user.email, username: user.username, is_admin: !!user.is_admin, exp: Math.floor(Date.now() / 1000) + 604800, iat: Math.floor(Date.now() / 1000) },
       c.env.JWT_SECRET
     );
 
     // Redirect back to app with token
-    return c.redirect(`${c.env.APP_URL}/oauth-callback?token=${token}`);
-  } catch {
+    return c.redirect(`${c.env.APP_URL}/oauth-callback#token=${token}`);
+  } catch (e) {
+    console.error('OAuth callback error:', e);
     return c.json({ error: 'Authentication failed.' }, 500);
   }
 });
@@ -393,7 +442,7 @@ app.get('/api/posts/:id', async (c) => {
 });
 
 // Create post (requires auth)
-app.post('/api/posts', requireAuth, async (c) => {
+app.post('/api/posts', requireAuth, requireUserAccount, async (c) => {
   try {
     const user = getAuthUser(c)!;
     const { type, title, content } = await c.req.json();
@@ -430,7 +479,8 @@ app.post('/api/posts', requireAuth, async (c) => {
     `).bind(meta.last_row_id).first<any>();
 
     return c.json({ post }, 201);
-  } catch {
+  } catch (e) {
+    console.error('Create post error:', e);
     return c.json({ error: 'Invalid request.' }, 400);
   }
 });
@@ -501,7 +551,8 @@ app.post('/api/vote', requireUserVote, async (c) => {
     ).bind(post_id).first<any>();
 
     return c.json({ upvotes: updated.upvotes });
-  } catch {
+  } catch (e) {
+    console.error('Vote error:', e);
     return c.json({ error: 'Invalid request.' }, 400);
   }
 });
@@ -582,22 +633,23 @@ app.post('/api/admin/login', async (c) => {
     const { username, password } = await c.req.json();
     if (username === c.env.ADMIN_USERNAME && password === c.env.ADMIN_PASSWORD) {
       const token = await sign(
-        { id: 0, email: 'admin@drclash', username: 'admin', is_admin: true, role: 'admin' },
+        { id: 0, email: 'admin@drclash', username: 'admin', is_admin: true, exp: Math.floor(Date.now() / 1000) + 604800, iat: Math.floor(Date.now() / 1000) },
         c.env.JWT_SECRET
       );
       return c.json({ token, user: { username: 'admin', is_admin: true } });
     }
     return c.json({ error: 'Invalid admin credentials.' }, 401);
-  } catch {
+  } catch (e) {
+    console.error('Admin login error:', e);
     return c.json({ error: 'Invalid request.' }, 400);
   }
 });
 
 // ──────────────────────────────────────
-// BCrypt helpers (using Web Crypto API)
+// PBKDF2 helpers (using Web Crypto API)
 // ──────────────────────────────────────
 
-async function bcryptHash(password: string): Promise<string> {
+async function pbkdf2Hash(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -611,7 +663,7 @@ async function bcryptHash(password: string): Promise<string> {
   return `pbkdf2:100000:${saltHex}:${hashHex}`;
 }
 
-async function bcryptCompare(password: string, stored: string): Promise<boolean> {
+async function pbkdf2Compare(password: string, stored: string): Promise<boolean> {
   const parts = stored.split(':');
   if (parts[0] !== 'pbkdf2') return false;
   const iterations = parseInt(parts[1]);
@@ -626,7 +678,16 @@ async function bcryptCompare(password: string, stored: string): Promise<boolean>
     { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, key, 256
   );
   const hashHex = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-  return hashHex === storedHash;
+  return constantTimeEqual(hashHex, storedHash);
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
 }
 
 export default app;

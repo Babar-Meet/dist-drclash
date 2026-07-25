@@ -6,13 +6,37 @@ export class AuthService {
   private api = inject(ApiService);
   user = signal<User | null>(null);
   loading = signal(true);
+  private _token: string | null = null;
 
   constructor() {
     this.loadUser();
   }
 
+  private getToken(): string | null {
+    if (this._token) return this._token;
+    const saved = sessionStorage.getItem('token');
+    if (saved) this._token = saved;
+    return saved;
+  }
+
+  private setToken(token: string | null) {
+    this._token = token;
+    if (token) sessionStorage.setItem('token', token);
+    else sessionStorage.removeItem('token');
+  }
+
+  async initFromToken(token: string) {
+    this.setToken(token);
+    try {
+      const { user } = await this.api.me();
+      this.user.set(user);
+    } catch {
+      this.setToken(null);
+    }
+  }
+
   async loadUser() {
-    const token = localStorage.getItem('token');
+    const token = this.getToken();
     if (!token) {
       this.loading.set(false);
       return;
@@ -21,20 +45,20 @@ export class AuthService {
       const { user } = await this.api.me();
       this.user.set(user);
     } catch {
-      localStorage.removeItem('token');
+      this.setToken(null);
     }
     this.loading.set(false);
   }
 
   async login(email: string, password: string) {
     const { token, user } = await this.api.login(email, password);
-    localStorage.setItem('token', token);
+    this.setToken(token);
     this.user.set(user);
   }
 
   async adminLogin(username: string, password: string) {
     const { token, user } = await this.api.adminLogin(username, password);
-    localStorage.setItem('token', token);
+    this.setToken(token);
     this.user.set(user);
   }
 
@@ -45,12 +69,12 @@ export class AuthService {
 
   async deleteAccount() {
     await this.api.deleteAccount();
-    localStorage.removeItem('token');
+    this.setToken(null);
     this.user.set(null);
   }
 
   logout() {
-    localStorage.removeItem('token');
+    this.setToken(null);
     this.user.set(null);
   }
 }

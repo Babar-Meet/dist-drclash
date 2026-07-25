@@ -60,4 +60,11 @@ function requireUserVote(c: Context, next: Next) {
   return next();
 }
 
-export { getAuthUser, jwtVerify, requireAuth, requireAdmin, requireUserVote };
+function requireUserAccount(c: Context, next: Next) {
+  const user = getAuthUser(c);
+  if (!user) return c.json({ error: 'Unauthorized' }, 401);
+  if (user.is_admin || user.id === 0) return c.json({ error: 'Admin accounts cannot use user features.' }, 403);
+  return next();
+}
+
+export { getAuthUser, jwtVerify, requireAuth, requireAdmin, requireUserVote, requireUserAccount };

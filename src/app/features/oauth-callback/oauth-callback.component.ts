@@ -12,11 +12,23 @@ export class OauthCallbackComponent implements OnInit {
   private auth = inject(AuthService);
 
   ngOnInit() {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
+    // Read token from URL fragment (#token=xxx)
+    const hash = window.location.hash;
+    let token: string | null = null;
+    if (hash) {
+      const hashParams = new URLSearchParams(hash.slice(1));
+      token = hashParams.get('token');
+    }
+    // Fallback to query param for backward compatibility
+    if (!token) {
+      const params = new URLSearchParams(window.location.search);
+      token = params.get('token');
+    }
     if (token) {
-      localStorage.setItem('token', token);
-      this.auth.loadUser().then(() => {
+      // Clean URL immediately
+      window.history.replaceState({}, '', window.location.pathname);
+      sessionStorage.setItem('token', token);
+      this.auth.initFromToken(token).then(() => {
         this.router.navigate(['/features-bug']);
       });
     } else {

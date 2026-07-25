@@ -32,6 +32,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/oauth-callback/oauth-callback.component').then(m => m.OauthCallbackComponent)
   },
   {
+    path: 'reset-password',
+    loadComponent: () => import('./features/reset-password/reset-password.component').then(m => m.ResetPasswordComponent)
+  },
+  {
     path: '**',
     redirectTo: ''
   }

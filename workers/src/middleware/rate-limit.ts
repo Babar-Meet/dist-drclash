@@ -1,36 +1,39 @@
 import { Context, Next } from 'hono';
 
-interface RateLimitStore {
-  [key: string]: { count: number; reset: number };
-}
+async function rateLimit(c: Context, next: Next, max: number, windowMs: number) {
+  const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
+  // hash the IP to avoid storing raw IPs
+  const encoder = new TextEncoder();
+  const ipHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(ip))))
+    .map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+  const key = `${c.req.path}:${ipHash}`;
 
-const store: RateLimitStore = {};
+  const now = Math.floor(Date.now() / 1000);
+  const windowKey = Math.floor(now / (windowMs / 1000));
 
-function rateLimit(max: number, windowMs: number) {
-  return (c: Context, next: Next) => {
-    const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
-    const key = `${c.req.path}:${ip}`;
-    const now = Date.now();
+  try {
+    // Upsert: insert or update count
+    await c.env.DB.prepare(
+      `INSERT INTO rate_limits (key, window_key, count, expires_at) VALUES (?, ?, 1, ?)
+       ON CONFLICT(key, window_key) DO UPDATE SET count = count + 1`
+    ).bind(key, windowKey, now + Math.ceil(windowMs / 1000)).run();
 
-    const entry = store[key];
-    if (!entry || now > entry.reset) {
-      store[key] = { count: 1, reset: now + windowMs };
-      return next();
-    }
+    const row = await c.env.DB.prepare(
+      'SELECT count FROM rate_limits WHERE key = ? AND window_key = ?'
+    ).bind(key, windowKey).first() as { count: number } | null;
 
-    entry.count++;
-    if (entry.count > max) {
-      const retryAfter = Math.ceil((entry.reset - now) / 1000);
-      c.header('Retry-After', String(retryAfter));
+    if (row && row.count > max) {
       return c.json({ error: 'Too many requests. Try again later.' }, 429);
     }
+  } catch (e) {
+    console.error('Rate limit check failed:', e);
+    // Fail open — allow request if DB is down
+  }
 
-    return next();
-  };
+  await next();
 }
 
-const strictRateLimit = rateLimit(10, 60_000);
-const standardRateLimit = rateLimit(30, 60_000);
-const generousRateLimit = rateLimit(100, 60_000);
+function strictRateLimit(c: Context, next: Next) { return rateLimit(c, next, 10, 60_000); }
+function standardRateLimit(c: Context, next: Next) { return rateLimit(c, next, 30, 60_000); }
 
-export { strictRateLimit, standardRateLimit, generousRateLimit };
+export { strictRateLimit, standardRateLimit };

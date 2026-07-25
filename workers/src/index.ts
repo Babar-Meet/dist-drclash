@@ -618,8 +618,27 @@ app.get('/api/admin/posts', requireAuth, async (c) => {
 
   query += ' ORDER BY p.created_at DESC';
 
-  const { results } = await c.env.DB.prepare(query).bind(...params).all();
-  return c.json({ posts: results });
+  const posts: any[] = (await c.env.DB.prepare(query).bind(...params).all()).results;
+
+  if (posts.length > 0) {
+    const ids = posts.map(p => p.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const { results: replies } = await c.env.DB.prepare(
+      `SELECT id, post_id, content, created_at FROM replies WHERE post_id IN (${placeholders}) ORDER BY created_at ASC`
+    ).bind(...ids).all<any>();
+
+    const repliesByPost: Record<number, any[]> = {};
+    for (const r of replies) {
+      if (!repliesByPost[r.post_id]) repliesByPost[r.post_id] = [];
+      repliesByPost[r.post_id].push(r);
+    }
+
+    for (const post of posts) {
+      (post as any).replies = repliesByPost[post.id] || [];
+    }
+  }
+
+  return c.json({ posts });
 });
 
 // Admin: Mark post as done

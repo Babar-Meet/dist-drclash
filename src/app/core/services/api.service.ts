@@ -9,6 +9,13 @@ export interface User {
   is_admin: boolean;
 }
 
+export interface Reply {
+  id: number;
+  post_id: number;
+  content: string;
+  created_at: string;
+}
+
 export interface Post {
   id: number;
   user_id: number;
@@ -20,6 +27,7 @@ export interface Post {
   username: string;
   user_vote: number | null;
   created_at: string;
+  replies?: Reply[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -92,4 +100,9 @@ export class ApiService {
   adminMarkDone(postId: number) { return this.put<{ ok: boolean }>(`/api/admin/posts/${postId}/done`); }
   adminReopen(postId: number) { return this.put<{ ok: boolean }>(`/api/admin/posts/${postId}/reopen`); }
   adminDeletePost(postId: number) { return this.delete<{ ok: boolean }>(`/api/admin/posts/${postId}`); }
+  adminReply(postId: number, content: string) { return this.post<{ reply: Reply }>(`/api/admin/posts/${postId}/reply`, { content }); }
+  adminClearDone() { return this.delete<{ ok: boolean }>('/api/admin/posts/done'); }
+
+  // Replies
+  getReplies(postId: number) { return this.get<{ replies: Reply[] }>(`/api/posts/${postId}/replies`); }
 }

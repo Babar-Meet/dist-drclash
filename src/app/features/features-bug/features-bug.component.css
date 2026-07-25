@@ -341,6 +341,57 @@
   flex: 1;
 }
 
+/* ── Read More Button ── */
+
+.read-more-btn {
+  background: none;
+  border: none;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #EF4444;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 12px;
+  text-align: left;
+  align-self: flex-start;
+}
+
+.read-more-btn:hover {
+  text-decoration: underline;
+}
+
+/* ── Admin Replies ── */
+
+.admin-replies {
+  margin-bottom: 12px;
+}
+
+.admin-reply {
+  border-left: 3px solid #0A0A0A;
+  padding: 8px 0 8px 14px;
+  margin-top: 8px;
+}
+
+.reply-label {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #0A0A0A;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.reply-text {
+  font-size: 13px;
+  color: #525252;
+  line-height: 1.6;
+  margin: 0;
+}
+
 /* ── Footer (bottom right) ── */
 
 .card-footer {

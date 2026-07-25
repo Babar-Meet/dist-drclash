@@ -29,6 +29,8 @@ export class FeaturesBugComponent implements OnInit {
   nextCursor: number | null = null;
   loadingMore = false;
   private pendingVotes = new Set<number>();
+  expandedPosts = new Set<number>();
+  contentLimit = 200;
 
   ngOnInit() {
     this.loadPosts();
@@ -98,6 +100,25 @@ export class FeaturesBugComponent implements OnInit {
     }
 
     this.pendingVotes.delete(postId);
+  }
+
+  toggleExpand(postId: number) {
+    if (this.expandedPosts.has(postId)) {
+      this.expandedPosts.delete(postId);
+    } else {
+      this.expandedPosts.add(postId);
+    }
+  }
+
+  isTruncated(content: string): boolean {
+    return content.length > this.contentLimit;
+  }
+
+  displayContent(post: ApiPost): string {
+    if (this.expandedPosts.has(post.id) || post.content.length <= this.contentLimit) {
+      return post.content;
+    }
+    return post.content.slice(0, this.contentLimit) + '...';
   }
 
   openForm(type: 'feature' | 'bug') {

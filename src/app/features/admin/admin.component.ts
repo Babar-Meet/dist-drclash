@@ -23,6 +23,9 @@ export class AdminComponent implements OnInit {
   loginError = '';
   loginLoading = false;
   filterStatus = '';
+  replyTexts: Record<number, string> = {};
+  sendingReplies = new Set<number>();
+  clearingDone = signal(false);
 
   ngOnInit() {
     if (this.auth.user()?.is_admin) {
@@ -66,6 +69,32 @@ export class AdminComponent implements OnInit {
     if (!confirm('Delete this post permanently?')) return;
     await this.api.adminDeletePost(postId);
     this.loadPosts();
+  }
+
+  async adminReply(postId: number) {
+    const content = this.replyTexts[postId]?.trim();
+    if (!content) return;
+    this.sendingReplies.add(postId);
+    try {
+      await this.api.adminReply(postId, content);
+      this.replyTexts[postId] = '';
+      this.loadPosts();
+    } catch (e: any) {
+      alert(e.message);
+    }
+    this.sendingReplies.delete(postId);
+  }
+
+  async clearDone() {
+    if (!confirm('Delete all done posts permanently?')) return;
+    this.clearingDone.set(true);
+    try {
+      await this.api.adminClearDone();
+      this.loadPosts();
+    } catch (e: any) {
+      alert(e.message);
+    }
+    this.clearingDone.set(false);
   }
 
   setFilter(status: string) {

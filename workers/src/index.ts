@@ -377,7 +377,7 @@ app.get('/api/auth/me', async (c) => {
 
 // Get posts with optional filters
 app.get('/api/posts', async (c) => {
-  const type = c.req.query('type'); // 'feature' | 'bug' | undefined (all)
+  const type = c.req.query('type');
   const status = c.req.query('status') || 'current';
   const cursor = parseInt(c.req.query('cursor') || '0');
   const limit = Math.min(parseInt(c.req.query('limit') || '20'), 50);
@@ -413,7 +413,25 @@ app.get('/api/posts', async (c) => {
   const posts = results.slice(0, limit);
   const nextCursor = hasMore ? posts[posts.length - 1].id : null;
 
-  // Add cache headers
+  // Batch fetch replies for all returned posts
+  if (posts.length > 0) {
+    const ids = posts.map(p => p.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const { results: replies } = await c.env.DB.prepare(
+      `SELECT id, post_id, content, created_at FROM replies WHERE post_id IN (${placeholders}) ORDER BY created_at ASC`
+    ).bind(...ids).all<any>();
+
+    const repliesByPost: Record<number, any[]> = {};
+    for (const r of replies) {
+      if (!repliesByPost[r.post_id]) repliesByPost[r.post_id] = [];
+      repliesByPost[r.post_id].push(r);
+    }
+
+    for (const post of posts) {
+      (post as any).replies = repliesByPost[post.id] || [];
+    }
+  }
+
   c.header('Cache-Control', 'public, max-age=30, s-maxage=60');
 
   return c.json({ posts, nextCursor });
@@ -437,8 +455,24 @@ app.get('/api/posts/:id', async (c) => {
 
   if (!post) return c.json({ error: 'Post not found.' }, 404);
 
+  // Get replies
+  const { results: replies } = await c.env.DB.prepare(
+    'SELECT id, post_id, content, created_at FROM replies WHERE post_id = ? ORDER BY created_at ASC'
+  ).bind(id).all<any>();
+  (post as any).replies = replies;
+
   c.header('Cache-Control', 'public, max-age=30');
   return c.json({ post });
+});
+
+// Get replies for a post
+app.get('/api/posts/:id/replies', async (c) => {
+  const id = parseInt(c.req.param('id') || '0');
+  if (!id) return c.json({ error: 'Invalid post ID.' }, 400);
+  const { results } = await c.env.DB.prepare(
+    'SELECT id, post_id, content, created_at FROM replies WHERE post_id = ? ORDER BY created_at ASC'
+  ).bind(id).all();
+  return c.json({ replies: results });
 });
 
 // Create post (requires auth)
@@ -613,6 +647,61 @@ app.put('/api/admin/posts/:id/reopen', requireAuth, async (c) => {
   return c.json({ ok: true });
 });
 
+// Admin: Reply to a post
+app.post('/api/admin/posts/:id/reply', requireAuth, async (c) => {
+  try {
+    const user = getAuthUser(c)!;
+    if (!user.is_admin) return c.json({ error: 'Forbidden.' }, 403);
+
+    const id = parseInt(c.req.param('id') || '0');
+    if (!id) return c.json({ error: 'Invalid post ID.' }, 400);
+
+    const { content } = await c.req.json();
+    if (!content || typeof content !== 'string') return c.json({ error: 'Content required.' }, 400);
+    const clean = content.trim();
+    if (clean.length < 1) return c.json({ error: 'Content required.' }, 400);
+    if (clean.length > 50000) return c.json({ error: 'Content too long.' }, 400);
+
+    const { success, meta } = await c.env.DB.prepare(
+      'INSERT INTO replies (post_id, content) VALUES (?, ?)'
+    ).bind(id, clean).run();
+
+    if (!success) return c.json({ error: 'Failed to create reply.' }, 500);
+
+    const reply = await c.env.DB.prepare(
+      'SELECT id, post_id, content, created_at FROM replies WHERE id = ?'
+    ).bind(meta.last_row_id).first();
+
+    return c.json({ reply }, 201);
+  } catch (e) {
+    console.error('Admin reply error:', e);
+    return c.json({ error: 'Invalid request.' }, 400);
+  }
+});
+
+// Admin: Clear all done posts
+app.delete('/api/admin/posts/done', requireAuth, async (c) => {
+  try {
+    const user = getAuthUser(c)!;
+    if (!user.is_admin) return c.json({ error: 'Forbidden.' }, 403);
+
+    await c.env.DB.prepare(
+      'DELETE FROM votes WHERE post_id IN (SELECT id FROM posts WHERE status = ?)'
+    ).bind('done').run();
+
+    await c.env.DB.prepare(
+      'DELETE FROM replies WHERE post_id IN (SELECT id FROM posts WHERE status = ?)'
+    ).bind('done').run();
+
+    await c.env.DB.prepare('DELETE FROM posts WHERE status = ?').bind('done').run();
+
+    return c.json({ ok: true });
+  } catch (e) {
+    console.error('Clear done error:', e);
+    return c.json({ error: 'Failed to clear done posts.' }, 500);
+  }
+});
+
 // Admin: Delete post
 app.delete('/api/admin/posts/:id', requireAuth, async (c) => {
   const user = getAuthUser(c)!;
@@ -621,6 +710,7 @@ app.delete('/api/admin/posts/:id', requireAuth, async (c) => {
   const id = parseInt(c.req.param('id') || '0');
   if (!id) return c.json({ error: 'Invalid post ID.' }, 400);
 
+  await c.env.DB.prepare('DELETE FROM replies WHERE post_id = ?').bind(id).run();
   await c.env.DB.prepare('DELETE FROM votes WHERE post_id = ?').bind(id).run();
   await c.env.DB.prepare('DELETE FROM posts WHERE id = ?').bind(id).run();
 

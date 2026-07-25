@@ -26,10 +26,15 @@
         <button class="btn btn-ghost" (click)="logout()">Logout</button>
       </div>
 
-      <div class="filter-tabs">
-        @for (f of [{ key: '', label: 'All' }, { key: 'current', label: 'Current' }, { key: 'done', label: 'Done' }]; track f.key) {
-          <button class="filter-chip" [class.active]="filterStatus === f.key" (click)="setFilter(f.key)">{{ f.label }}</button>
-        }
+      <div class="admin-toolbar">
+        <div class="filter-tabs">
+          @for (f of [{ key: '', label: 'All' }, { key: 'current', label: 'Current' }, { key: 'done', label: 'Done' }]; track f.key) {
+            <button class="filter-chip" [class.active]="filterStatus === f.key" (click)="setFilter(f.key)">{{ f.label }}</button>
+          }
+        </div>
+        <button class="btn btn-sm btn-destructive" (click)="clearDone()" [disabled]="clearingDone()">
+          {{ clearingDone() ? 'Clearing...' : 'Clear Done' }}
+        </button>
       </div>
 
       @if (loading()) {
@@ -46,6 +51,7 @@
             <th>Votes</th>
             <th>Status</th>
             <th>Actions</th>
+            <th>Admin Reply</th>
           </tr>
         </thead>
         <tbody>
@@ -72,6 +78,34 @@
                   <button class="btn btn-sm btn-secondary" (click)="reopen(post.id)">Reopen</button>
                 }
                 <button class="btn btn-sm btn-destructive" (click)="deletePost(post.id)">Delete</button>
+              </td>
+              <td>
+                <div class="reply-cell">
+                  @if (post.replies && post.replies.length > 0) {
+                    <div class="reply-preview">
+                      @for (r of post.replies; track r.id) {
+                        <p class="reply-preview-text">{{ r.content }}</p>
+                      }
+                    </div>
+                  }
+                  <div class="reply-input-row">
+                    <input
+                      type="text"
+                      [(ngModel)]="replyTexts[post.id]"
+                      name="reply_{{ post.id }}"
+                      placeholder="Write a reply..."
+                      class="reply-input"
+                      (keydown.enter)="adminReply(post.id)"
+                    />
+                    <button
+                      class="btn btn-sm btn-primary"
+                      (click)="adminReply(post.id)"
+                      [disabled]="sendingReplies.has(post.id) || !replyTexts[post.id]?.trim()"
+                    >
+                      {{ sendingReplies.has(post.id) ? '...' : 'Send' }}
+                    </button>
+                  </div>
+                </div>
               </td>
             </tr>
           }

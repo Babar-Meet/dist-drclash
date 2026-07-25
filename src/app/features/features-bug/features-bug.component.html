@@ -81,7 +81,22 @@
         </div>
         <div class="card-body">
           <h3 class="card-title">{{ post.title }}</h3>
-          <p class="card-text">{{ post.content }}</p>
+          <p class="card-text">{{ displayContent(post) }}</p>
+          @if (isTruncated(post.content)) {
+            <button class="read-more-btn" (click)="toggleExpand(post.id)">
+              {{ expandedPosts.has(post.id) ? 'Show less' : 'Read more' }}
+            </button>
+          }
+          @if (post.replies && post.replies.length > 0) {
+            <div class="admin-replies">
+              @for (reply of post.replies; track reply.id) {
+                <div class="admin-reply">
+                  <span class="reply-label">Admin reply</span>
+                  <p class="reply-text">{{ reply.content }}</p>
+                </div>
+              }
+            </div>
+          }
           <div class="card-footer">
             <span class="card-author">{{ post.username }}</span>
             <span class="card-date">{{ post.created_at | date:'mediumDate' }}</span>

@@ -144,11 +144,18 @@
 
 .btn-ghost:hover { color: #EF4444; }
 
+/* Admin Toolbar */
+.admin-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
 /* Filter Tabs */
 .filter-tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 24px;
 }
 
 .filter-chip {
@@ -232,6 +239,58 @@
 
 .status-badge.current { border-color: #CA8A04; color: #CA8A04; }
 .status-badge.done { border-color: #16A34A; color: #16A34A; }
+
+/* Reply Cell */
+.reply-cell {
+  min-width: 200px;
+}
+
+.reply-preview {
+  margin-bottom: 6px;
+}
+
+.reply-preview-text {
+  font-size: 11px;
+  color: #525252;
+  line-height: 1.5;
+  margin: 0 0 4px 0;
+  padding: 4px 8px;
+  background: #F5F5F5;
+  border-left: 2px solid #0A0A0A;
+}
+
+.reply-input-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.reply-input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  background: #FAFAFA;
+  border: 2px solid #D4D4D4;
+  padding: 4px 8px;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 12px;
+  color: #0A0A0A;
+  outline: none;
+}
+
+.reply-input:focus {
+  border-color: #0A0A0A;
+}
+
+.btn-primary {
+  background: #0A0A0A;
+  color: #FAFAFA;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #EF4444;
+  border-color: #EF4444;
+}
 
 @media (max-width: 768px) {
   .admin-table { font-size: 12px; }

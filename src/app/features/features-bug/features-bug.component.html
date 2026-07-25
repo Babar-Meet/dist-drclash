@@ -47,13 +47,17 @@
   }
 
   @if (loading()) {
-    <div class="loading">Loading...</div>
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <p>Loading ideas...</p>
+    </div>
   }
 
   @if (!loading() && posts().length === 0) {
     <div class="empty-state">
       @if (activeFilter() === 'done') {
         <p>Nothing completed yet</p>
+        <p class="empty-hint">Completed features and fixes will appear here.</p>
       } @else {
         <p>No {{ activeFilter() === 'feature' ? 'feature requests' : activeFilter() === 'bug' ? 'bug reports' : 'posts' }} yet</p>
         <p class="empty-hint">Be the first to share your idea.</p>
@@ -63,7 +67,7 @@
 
   <div class="posts-list">
     @for (post of posts(); track post.id) {
-      <div class="card" [class.card-done]="post.status === 'done'">
+      <div class="card" [class.card-done]="post.status === 'done'" [class.card-expanded]="expandedPosts().has(post.id)">
         <div class="card-left">
           <div class="card-labels">
             <span class="label-type" [class.type-feature]="post.type === 'feature'" [class.type-bug]="post.type === 'bug'" [class.is-done]="post.status === 'done'">
@@ -81,10 +85,13 @@
         </div>
         <div class="card-body">
           <h3 class="card-title">{{ post.title }}</h3>
-          <p class="card-text">{{ displayContent(post) }}</p>
+          <div class="card-text-wrap" [class.is-expanded]="expandedPosts().has(post.id)">
+            <p class="card-text">{{ displayContent(post) }}</p>
+          </div>
           @if (isTruncated(post.content)) {
             <button class="read-more-btn" (click)="toggleExpand(post.id)">
-              {{ expandedPosts.has(post.id) ? 'Show less' : 'Read more' }}
+              {{ expandedPosts().has(post.id) ? 'Show less' : 'Read more' }}
+              <span class="read-more-arrow">{{ expandedPosts().has(post.id) ? '↑' : '↓' }}</span>
             </button>
           }
           @if (post.replies && post.replies.length > 0) {

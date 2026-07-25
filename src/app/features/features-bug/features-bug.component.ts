@@ -29,7 +29,7 @@ export class FeaturesBugComponent implements OnInit {
   nextCursor: number | null = null;
   loadingMore = false;
   private pendingVotes = new Set<number>();
-  expandedPosts = new Set<number>();
+  expandedPosts = signal<Set<number>>(new Set());
   contentLimit = 200;
 
   ngOnInit() {
@@ -52,6 +52,8 @@ export class FeaturesBugComponent implements OnInit {
     } catch {}
     this.loading.set(false);
     this.loadingMore = false;
+    // Scroll to top when filter changes
+    if (!cursor) window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   setFilter(tab: string) {
@@ -103,22 +105,24 @@ export class FeaturesBugComponent implements OnInit {
   }
 
   toggleExpand(postId: number) {
-    if (this.expandedPosts.has(postId)) {
-      this.expandedPosts.delete(postId);
-    } else {
-      this.expandedPosts.add(postId);
-    }
+    this.expandedPosts.update(s => {
+      const next = new Set(s);
+      if (next.has(postId)) next.delete(postId);
+      else next.add(postId);
+      return next;
+    });
   }
 
-  isTruncated(content: string): boolean {
-    return content.length > this.contentLimit;
+  isTruncated(content: string | undefined): boolean {
+    return (content || '').length > this.contentLimit;
   }
 
   displayContent(post: ApiPost): string {
-    if (this.expandedPosts.has(post.id) || post.content.length <= this.contentLimit) {
-      return post.content;
+    const content = post.content || '';
+    if (this.expandedPosts().has(post.id) || content.length <= this.contentLimit) {
+      return content;
     }
-    return post.content.slice(0, this.contentLimit) + '...';
+    return content.slice(0, this.contentLimit) + '...';
   }
 
   openForm(type: 'feature' | 'bug') {

@@ -5,7 +5,7 @@
       @if (loginError) {
         <div class="alert alert-error">{{ loginError }}</div>
       }
-      <form (ngSubmit)="adminLogin()" class="login-form">
+      <form (ngSubmit)="adminLogin()" class="login-form" novalidate>
         <label class="field">
           <span class="field-label">Username</span>
           <input type="text" [(ngModel)]="username" name="username" required />

@@ -14,10 +14,10 @@
       <div class="alert alert-success">{{ success() }}</div>
     }
 
-    <form (ngSubmit)="submit()" class="login-form">
+    <form (ngSubmit)="submit()" class="login-form" novalidate>
       <label class="field">
         <span class="field-label">Email</span>
-        <input type="email" [(ngModel)]="email" name="email" placeholder="you@example.com" required />
+        <input type="text" [(ngModel)]="email" name="email" placeholder="you@example.com" required />
       </label>
 
       @if (isRegister) {
@@ -53,6 +53,7 @@
           {{ isRegister ? 'Login' : 'Register' }}
         </button>
       </span>
+      <a routerLink="/admin" class="link-btn">Admin login</a>
     </div>
   </div>
 </div>

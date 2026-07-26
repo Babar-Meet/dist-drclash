@@ -1,511 +1,858 @@
-# AI Generated Documentation
-
-This documentation was generated through static analysis of the project's source code.
-
-It represents the implementation at the time it was generated and may become outdated as the project evolves.
-
-Always treat the source code as the ultimate source of truth.
-
----
+> [!NOTE]
+> **Documentation Notice**
+>
+> This documentation is automatically generated through static analysis of the repository's implementation and existing documentation. It reflects the verified implementation at the time it was generated and is intended as a technical reference for the project's architecture, implementation details, workflows, and engineering decisions.
+>
+> As the project evolves, portions of this document may become outdated. The repository's source code and LICENSE file remain the authoritative sources for runtime behavior, legal terms, and implementation details.
 
 # Dr.Clash
 
-A community-driven feature request and bug tracking platform for Clash of Clans companion app.
+A public feature request and bug tracking platform for the Dr.Clash Clash of Clans companion mobile app. Users submit, vote on, and track feature requests and bug reports. Administrators manage the board with replies, status updates, and moderation.
 
----
+The companion mobile application (upgrade tracker, base layouts, army planner, statistics, mini-games, home screen widgets) is a separate project not included in this repository. This repository contains only the web-based community feedback portal and its serverless API backend.
 
 ## Purpose
 
-Dr.Clash exists to serve as the public feedback hub for a Clash of Clans companion mobile application. It allows users to submit feature requests and bug reports, vote on existing submissions, and allows administrators to track, respond to, and mark work as completed. The platform replaces opaque feedback channels with a transparent, vote-driven prioritization system.
-
-The companion mobile app itself (upgrade tracker, base layouts, army planner, stats, mini-games, home screen widgets) is not included in this repository. This repository contains only the web-based feedback portal and its API backend.
-
-Intended audience: end users of the Dr.Clash mobile app, community moderators, and project administrators.
-
----
+Dr.Clash replaces opaque feedback channels (email, Discord, etc.) with a transparent, vote-driven prioritization system. Every authenticated user can submit feature requests and bug reports, upvote or downvote existing submissions, and see which items administrators have completed. The system provides a direct communication channel between the mobile app's user base and its development team.
 
 ## Highlights
 
-- **Serverless backend**: Entire API runs on Cloudflare Workers with D1 SQLite database -- zero infrastructure management
-- **Vote-driven prioritization**: Community upvote/downvote system with optimistic UI updates and server reconciliation
-- **Dual auth strategies**: Email/password with PBKDF2 hashing alongside Google OAuth integration
-- **Rate-limited by design**: Per-endpoint, per-IP windowed rate limiting on auth and submission endpoints
-- **Editorial design system**: VoiceBox -- a high-contrast, magazine-style, zero-border-radius visual language
-- **Lazy-loaded architecture**: All routes use Angular 17+ `loadComponent` for code-split delivery
-
----
+- **Serverless API**: Entire backend runs on Cloudflare Workers with D1 (serverless SQLite) -- no servers to manage, automatic scaling
+- **Vote-driven prioritization**: Community upvote/downvote system with optimistic UI updates and authoritative server reconciliation
+- **Dual authentication strategies**: Email/password with PBKDF2 (100k iterations SHA-256) alongside Google OAuth 2.0
+- **Rate-limited by design**: Per-endpoint, per-IP windowed rate limiting using D1 storage for auth and submission endpoints
+- **Editorial design system**: VoiceBox -- a magazine-style, high-contrast, zero-border-radius visual language with intentional red accent usage
+- **Lazy-loaded frontend**: Every route uses Angular 17+ `loadComponent` for code-split delivery
 
 ## Features
 
-- **Feature/Bug Board**: Public feed of user-submitted feature requests and bug reports with type-based filtering
-- **Voting System**: Authenticated upvote/downvote with toggle-off, optimistic state, and server-side correction
-- **User Authentication**: Email/password registration, Google OAuth, JWT-based session management
-- **Password Reset**: Email-based reset flow via Resend API with expiring JWT tokens
-- **Admin Dashboard**: Separate admin authentication (env var credentials), post management (mark done, reopen, delete), reply management (create, edit, delete), bulk clear of completed items
-- **Profile Management**: In-app username editing, full account deletion with cascade of all associated data
-- **Cursor-based Pagination**: Infinite scroll on the post feed via keyset pagination
-- **Responsive Layout**: Full mobile responsiveness with hamburger navigation, adaptive grids, and mobile-first CSS
-- **Scroll-triggered Animations**: IntersectionObserver-based fade-in animations on landing and legal pages
-- **Go-to-Top Button**: Fixed-position scroll-to-top button appearing after scroll threshold
-- **Legal Pages**: Privacy Policy and Terms & Conditions pages with markdown-style content
-
----
+- **Feature/Bug Board**: Public feed of user-submitted feature requests and bug reports with type-based and status-based filtering
+- **Voting System**: Authenticated upvote (+) and downvote (-) with toggle-off behavior, optimistic state updates, and server-side correction
+- **Cursor-based Pagination**: Keyset pagination on the post feed using last post ID as cursor, avoiding offset drift
+- **User Authentication**: Email/password registration with server-side validation, Google OAuth 2.0, JWT-based session management with 7-day expiry
+- **Password Reset**: Email-based reset flow via the Resend API with 1-hour expiring JWT tokens
+- **Admin Dashboard**: Separate admin authentication against environment variable credentials, post management (mark done, reopen, delete), reply management (create, edit, delete), bulk clear of all completed items
+- **Profile Management**: In-app username editing with server-side uniqueness validation, full account deletion with cascade of all associated data
+- **Responsive Layout**: Mobile-responsive design with hamburger navigation, full-screen overlay menu with staggered animations, adaptive grids, and mobile-first CSS
+- **Scroll-triggered Animations**: IntersectionObserver-based fade-in animations on the landing page and legal pages
+- **Go-to-Top Button**: Fixed-position scroll-to-top button appearing after 200px scroll threshold
+- **Legal Pages**: Privacy Policy and Terms & Conditions pages with scroll-animated content
 
 ## Technical Overview
 
-Dr.Clash is split into two independently deployable units:
+Dr.Clash is split into two independently deployable units that communicate exclusively through a REST API:
 
-**Frontend** is an Angular 21 single-page application using standalone components (no NgModules). Every route is lazy-loaded via `loadComponent`. The app communicates with the backend exclusively through a REST API client (`ApiService`). Authentication state is managed by `AuthService` using signals, with the JWT token stored in `sessionStorage`. The visual layer follows the VoiceBox design system -- a strict editorial aesthetic with no rounded corners, no shadows, black/white palette with a single red accent per viewport.
+**Frontend** -- An Angular 21 single-page application deployed on Vercel. Uses standalone components exclusively (no NgModules). Every application route is lazy-loaded via `loadComponent`, producing separate JavaScript chunks delivered on demand. Authentication state is managed by `AuthService` using Angular signals (`signal()`, `computed()`), with the JWT token stored in `sessionStorage` (cleared on tab close). The HTTP client (`ApiService`) wraps native `fetch` with automatic `Authorization: Bearer` header injection. The visual layer follows the VoiceBox design system -- strict editorial aesthetic with zero rounded corners, no shadows, black/white/red palette only, and a deliberately limited red accent policy (at most one red element per viewport).
 
-**Backend** is a Cloudflare Workers application built on the Hono framework. It uses D1 (Cloudflare's serverless SQLite database) for persistence, JWT for stateless authentication, and the Web Crypto API for PBKDF2 password hashing. The API follows a flat route structure under `/api/` with middleware handling CORS, security headers, JWT verification, and rate limiting. Admin functionality is gated behind a separate credential check against environment variables.
+**Backend** -- A Cloudflare Workers application built on the Hono 4.6 framework, deployed as a serverless function with a D1 SQLite database. Uses JWT (HS256) for stateless authentication, the Web Crypto API for PBKDF2 password hashing (100,000 iterations SHA-256 with 16-byte salt), and parameterized prepared statements (D1 `.bind()`) for all database operations. Rate limiting is implemented as middleware backed by D1 storage with SHA-256 hashed IPs (never stores raw IP addresses). The API follows a flat route structure under `/api/` with middleware handling CORS, security headers, JWT verification, and windowed rate limiting.
 
-The frontend is deployed on Vercel. The backend is deployed as a Cloudflare Worker with its database managed through D1 migrations.
+**Communication Boundary**: The Angular SPA communicates with the Cloudflare Workers API exclusively through HTTPS REST calls. The API base URL is hardcoded in the frontend's `ApiService`. No WebSocket, no server-sent events, no real-time push -- all data fetching is request-response.
 
----
+## Technology Stack
 
-## Tech Stack
-
-| Category | Technology |
+### Frontend
+| Technology | Purpose |
 |---|---|
-| **Language** | TypeScript 5.9 |
-| **Frontend Framework** | Angular 21.2 (standalone components) |
-| **Backend Runtime** | Cloudflare Workers |
-| **Backend Framework** | Hono 4.6 |
-| **Database** | Cloudflare D1 (SQLite) |
-| **Auth** | JWT (HS256), PBKDF2 (100k iterations, SHA-256), Google OAuth 2.0 |
-| **Email** | Resend API |
-| **Build Tool** | Angular CLI / esbuild (via `@angular/build`) |
-| **Testing** | Vitest 4, jsdom 28 |
-| **Code Quality** | TypeScript strict mode, Prettier |
-| **Deployment (Frontend)** | Vercel |
-| **Deployment (Backend)** | Cloudflare Workers (Wrangler) |
-| **Package Manager** | npm 11 |
-| **HTTP Client** | Native `fetch` (Angular) |
-| **Design System** | VoiceBox (custom, see DESIGN.md) |
+| TypeScript 5.9 | Primary language, strict mode enabled |
+| Angular 21.2 | SPA framework using standalone components, signals, `bootstrapApplication` |
+| Angular Router 21.2 | Lazy-loaded routing via `loadComponent` |
+| Angular Forms 21.2 | Template-driven forms with `FormsModule` and `[(ngModel)]` |
+| Angular Animations | `provideAnimations()` provider (registered, no custom animations used) |
+| Native `fetch` | HTTP client wrapping the browser Fetch API |
+| esbuild (via `@angular/build`) | Production build bundler replacing the legacy `@angular-devkit/build-angular` |
 
----
+### Backend
+| Technology | Purpose |
+|---|---|
+| TypeScript 5.6 | Primary language, strict mode enabled |
+| Hono 4.6 | Lightweight TypeScript web framework for Cloudflare Workers providing routing, context, middleware, and JWT utilities |
+| Cloudflare Workers | Serverless runtime environment |
+| Cloudflare D1 | Serverless SQLite database with ACID transactions |
+| Web Crypto API | PBKDF2 password hashing and SHA-256 digest (in-browser, no external library) |
+| Wrangler 3.80 | Cloudflare Workers CLI for development, deployment, and D1 migrations |
 
-## Project Structure
+### Authentication
+| Technology | Purpose |
+|---|---|
+| JWT (HS256) | Stateless session tokens with `hono/jwt` sign/verify |
+| PBKDF2 (100k iterations, SHA-256) | Password hashing with per-password random 16-byte salt |
+| Google OAuth 2.0 | Third-party authentication via Google's OAuth endpoints |
+| Resend API | Transactional email delivery for password reset flow |
+
+### Infrastructure
+| Platform | Purpose |
+|---|---|
+| Vercel | Frontend SPA hosting |
+| Cloudflare Workers | Backend API hosting |
+| Cloudflare D1 | Serverless SQLite database |
+| npm 11 | Package manager |
+
+### Developer Tooling
+| Technology | Purpose |
+|---|---|
+| Prettier 3.8 | Code formatting (single quotes, 100 char width, Angular HTML parser) |
+| Vitest 4.0 / jsdom 28.0 | Unit testing framework (configured but no test files exist) |
+
+## Repository Structure
 
 ```
-dist-drclash/
-├── public/                          # Static assets served from root
+/
+├── public/                          # Static assets (served from root by Angular)
 │   ├── app-icon.png                 # App icon / favicon
-│   ├── favicon.ico
-│   ├── app-store.svg                # App Store badge
-│   └── google-play.svg              # Google Play badge
-├── src/
+│   ├── app-store.svg                # Apple App Store badge SVG
+│   ├── google-play.svg              # Google Play badge SVG
+│   └── favicon.ico
+├── src/                             # Angular application source
 │   ├── index.html                   # Entry HTML with Google Fonts preconnect
-│   ├── main.ts                      # Angular bootstrap
-│   ├── styles.css                   # Global reset, body, selection
+│   ├── main.ts                      # Angular bootstrap via bootstrapApplication()
+│   ├── styles.css                   # Global CSS reset, body defaults, selection color
 │   └── app/
-│       ├── app.config.ts            # Application config (router, animations, error handlers)
-│       ├── app.routes.ts            # All route definitions with lazy loading
+│       ├── app.config.ts            # ApplicationConfig providers (router, animations, error listeners)
+│       ├── app.routes.ts            # Route definitions with lazy-loaded components
 │       ├── app.ts                   # Root component (nav + router-outlet + footer + go-to-top)
-│       ├── app.html                 # Root template
-│       ├── app.css                  # Root layout (flex column, min-height)
+│       ├── app.html                 # Root template (component selectors)
+│       ├── app.css                  # Root layout (flex column, min-height: 100dvh)
 │       ├── core/
 │       │   └── services/
-│       │       ├── api.service.ts   # HTTP client wrapping fetch to Workers API
+│       │       ├── api.service.ts   # HTTP client wrapping fetch, typed methods for all endpoints
 │       │       └── auth.service.ts  # Authentication state (signal-based), token management
-│       ├── features/
+│       ├── features/               # Lazy-loaded feature modules (one per route)
 │       │   ├── home/                # Landing page with hero, feature cards, app store links
-│       │   ├── features-bug/        # Feature/bug request board with voting and filtering
-│       │   ├── login/               # Login/register form, Google OAuth, forgot password
-│       │   ├── admin/               # Admin dashboard: post/reply management, bulk operations
+│       │   ├── features-bug/        # Feature/bug request board with voting, filtering, pagination
+│       │   ├── login/               # Login/register forms, Google OAuth, forgot password
+│       │   ├── admin/               # Admin dashboard with post/reply management and bulk ops
 │       │   ├── oauth-callback/      # OAuth redirect handler (token from URL fragment)
-│       │   ├── reset-password/      # Password reset form (token from query param)
-│       │   ├── privacy-policy/      # Privacy policy legal page
-│       │   └── terms-conditions/    # Terms & conditions legal page
-│       ├── layout/
+│       │   ├── reset-password/      # Password reset form (token from query parameter)
+│       │   ├── privacy-policy/      # Privacy policy legal page with scroll animations
+│       │   └── terms-conditions/    # Terms & conditions legal page with scroll animations
+│       ├── layout/                  # Shell components (persistent outside router-outlet)
 │       │   ├── nav/                 # Sticky nav bar, hamburger menu, profile modal
 │       │   └── footer/              # Site footer with navigation links
-│       └── shared/
+│       └── shared/                  # Reusable building blocks
 │           ├── components/
 │           │   ├── coming-soon.component.ts   # Placeholder for unimplemented routes
-│           │   └── go-to-top.component.ts     # Scroll-to-top FAB
+│           │   └── go-to-top.component.ts     # Scroll-to-top floating action button
 │           └── directives/
 │               └── animate-on-scroll.directive.ts  # IntersectionObserver fade-in
 ├── workers/                         # Cloudflare Workers backend
-│   ├── wrangler.toml                # Worker config, D1 binding, env vars
-│   ├── package.json                 # Backend dependencies
-│   ├── tsconfig.json                # Workers TypeScript config
-│   ├── migrations/
-│   │   ├── 0001_initial.sql         # Users, posts, votes tables + indexes
-│   │   ├── 0002_rate_limit.sql      # rate_limits table for rate limiting + OAuth state
-│   │   └── 0003_replies.sql         # replies table for admin responses
+│   ├── wrangler.toml                # Worker config, D1 binding, env vars, secrets
+│   ├── package.json                 # Backend dependencies (hono, wrangler, typescript)
+│   ├── tsconfig.json                # Workers TypeScript config (ES2021, strict)
+│   ├── migrations/                  # Sequential SQL migration files
+│   │   ├── 0001_initial.sql         # users, posts, votes tables + indexes
+│   │   ├── 0002_rate_limit.sql      # rate_limits table + OAuth state storage
+│   │   └── 0003_replies.sql         # replies table (admin responses)
 │   └── src/
-│       ├── index.ts                 # Main Hono app: all route handlers, auth, helpers
+│       ├── index.ts                 # Main Hono app: all route handlers, auth helpers, DB ops
 │       ├── db/
-│       │   └── types.ts             # TypeScript interfaces for DB rows
+│       │   └── types.ts             # TypeScript interfaces for DB rows (User, Post, Vote, etc.)
 │       └── middleware/
-│           ├── auth.ts              # JWT verification, requireAuth, requireAdmin guards
+│           ├── auth.ts              # JWT verification, requireAuth, requireAdmin, guard functions
 │           └── rate-limit.ts        # Per-IP windowed rate limiting middleware
 ├── DESIGN.md                        # Complete VoiceBox design system specification
-├── AGENTS.md                        # AI coding assistant guidelines
-├── angular.json                     # Angular CLI configuration
-├── tsconfig.json                    # Root TypeScript config (strict mode)
+├── AGENTS.md                        # AI assistant coding conventions
+├── angular.json                     # Angular CLI configuration (esbuild builder, budgets)
+├── tsconfig.json                    # Root TypeScript config (strict mode, ES2022)
 ├── tsconfig.app.json                # App-specific TS config
 ├── tsconfig.spec.json               # Test-specific TS config (vitest globals)
-├── vercel.json                      # Vercel deployment config
-├── .env.example                     # Environment variable template
-├── .editorconfig                    # Editor settings
-├── .prettierrc                      # Prettier config (single quotes, 100 width)
-└── package.json                     # Frontend dependencies and scripts
+├── vercel.json                      # Vercel deployment configuration (project name only)
+├── .env.example                     # Template for all required environment variables
+├── .editorconfig                    # Editor settings (2-space indent, UTF-8, single quotes for TS)
+├── .prettierrc                      # Prettier configuration
+├── .gitignore                       # Git ignore rules
+├── package.json                     # Frontend dependencies and scripts
+└── package-lock.json                # Lockfile (npm)
 ```
-
----
 
 ## Architecture
 
 ### System Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  Browser (Angular SPA)                              │
-│  ┌──────────┐ ┌──────────┐ ┌─────────────────────┐ │
-│  │ Nav      │ │ Router   │ │ GoToTop / Footer    │ │
-│  │ Component│ │ Outlet   │ │ Components          │ │
-│  └──────────┘ └──────────┘ └─────────────────────┘ │
-│       │              │                              │
-│       ▼              ▼                              │
-│  ┌─────────────────────────────────────────────┐    │
-│  │ AuthService (signal-based user state)       │    │
-│  │ ApiService (fetch-based HTTP client)        │    │
-│  └─────────────────────────────────────────────┘    │
-│                        │                             │
-└────────────────────────┼────────────────────────────┘
-                         │ HTTPS / REST
+┌─────────────────────────────────────────────────────────────┐
+│  Browser (Angular SPA)                                      │
+│  ┌──────────┐ ┌──────────┐ ┌─────────────────────────────┐ │
+│  │ Nav      │ │ Router   │ │ GoToTop / Footer            │ │
+│  │ Component│ │ Outlet   │ │ Components                  │ │
+│  └──────────┘ └──────────┘ └─────────────────────────────┘ │
+│       │              │                                      │
+│       ▼              ▼                                      │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ AuthService (signal-based user state, JWT token mgmt)│    │
+│  │ ApiService (fetch-based typed HTTP client)           │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                        │                                      │
+└────────────────────────┼─────────────────────────────────────┘
+                         │ HTTPS / REST (JSON)
                          ▼
-┌─────────────────────────────────────────────────────┐
-│  Cloudflare Workers (Hono)                          │
-│  ┌──────────┐ ┌──────────┐ ┌─────────────────────┐ │
-│  │ CORS     │ │ JWT      │ │ Rate Limiting       │ │
-│  │ Middleware│ │ Verify   │ │ Middleware          │ │
-│  └──────────┘ └──────────┘ └─────────────────────┘ │
-│       │              │              │               │
-│       ▼              ▼              ▼               │
-│  ┌─────────────────────────────────────────────┐    │
-│  │ Route Handlers                               │    │
-│  │ /api/auth/*   /api/posts/*                   │    │
-│  │ /api/vote     /api/admin/*                   │    │
-│  └─────────────────────────────────────────────┘    │
-│                        │                             │
-└────────────────────────┼────────────────────────────┘
-                         │
+┌─────────────────────────────────────────────────────────────┐
+│  Cloudflare Workers (Hono 4.6)                              │
+│  ┌────────────┐ ┌────────────┐ ┌─────────────────────────┐ │
+│  │ CORS       │ │ JWT Verify │ │ Rate Limiting (D1)      │ │
+│  │ Middleware  │ │ Middleware │ │ Middleware              │ │
+│  └────────────┘ └────────────┘ └─────────────────────────┘ │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ Route Handlers                                       │    │
+│  │ /api/health    /api/auth/*    /api/posts/*           │    │
+│  │ /api/vote      /api/admin/*                          │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                        │                                      │
+└────────────────────────┼─────────────────────────────────────┘
+                         │ D1 Binding
                          ▼
-              ┌─────────────────────┐
-              │  Cloudflare D1      │
-              │  (SQLite Database)  │
-              │  users / posts      │
-              │  votes / replies    │
-              │  rate_limits        │
-              └─────────────────────┘
+               ┌─────────────────────────┐
+               │  Cloudflare D1 (SQLite) │
+               │  users / posts / votes  │
+               │  replies / rate_limits  │
+               └─────────────────────────┘
+```
+
+### Initialization Sequence
+
+1. **Angular Bootstrap**: `main.ts` calls `bootstrapApplication(App, appConfig)`. The `appConfig` provider array registers `provideRouter(routes)`, `provideAnimations()`, and `provideBrowserGlobalErrorListeners()`.
+
+2. **Root Component Render**: `App` component renders immediately with four children: `<app-nav />` (sticky navigation), `<router-outlet />` (feature content), `<app-footer />`, and `<app-go-to-top />`. The `NavComponent` and `FooterComponent` are eagerly imported by `App.ts` -- they are not lazy-loaded because they persist across navigation.
+
+3. **AuthService Initialization**: The `AuthService` constructor calls `loadUser()` synchronously during Angular's dependency injection phase. This checks `sessionStorage` for an existing JWT token. If found, it calls `GET /api/auth/me` to validate the token and populate the `user` signal. The `loading` signal transitions from `true` to `false` after completion.
+
+4. **Route Resolution**: The Angular Router matches the current URL against `app.routes.ts`. Each route is defined with `loadComponent` for lazy-loaded chunk delivery. The matched component (e.g., `HomeComponent` for `/`) is loaded asynchronously and rendered into `<router-outlet />`.
+
+5. **Backend Cold Start**: When the Cloudflare Worker receives its first request (or after idle timeout), the Hono application initializes in the Workers runtime. No database connection pool is needed -- D1 queries are executed through the injected binding (`c.env.DB`). Static middleware (CORS, security headers) is registered once at worker boot.
+
+### Middleware Stack (Execution Order)
+
+```
+Incoming Request
+  │
+  ├ 1. CORS Middleware (global, all routes)
+  │    Sets Access-Control-Allow-Origin to APP_URL env var
+  │    Handles OPTIONS preflight (204 No Content)
+  │
+  ├ 2. JWT Verify Middleware (global, /api/*)
+  │    Extracts Bearer token from Authorization header
+  │    Verifies HS256 signature via hono/jwt verify()
+  │    On success: populates c.set('user', payload)
+  │    On failure: silently continues with user = null (non-blocking)
+  │
+  ├ 3. Security Headers Middleware (global, all routes)
+  │    X-Frame-Options: DENY
+  │    X-Content-Type-Options: nosniff
+  │    Referrer-Policy: strict-origin-when-cross-origin
+  │    X-XSS-Protection: 0
+  │
+  ├ 4. Rate Limit Middleware (selected routes only)
+  │    Applied to: /api/auth/login, /api/auth/register,
+  │    /api/auth/forgot-password, /api/admin/login,
+  │    /api/auth/reset-password, /api/posts, /api/vote
+  │    Strict limit: 10 req/60s (auth + admin login endpoints)
+  │    Standard limit: 30 req/60s (posts + vote endpoints)
+  │    See rate-limit.ts for implementation
+  │
+  └ 5. Route Handler
+       Executes business logic, database operations, returns JSON
 ```
 
 ### Frontend Architecture
 
-The Angular application follows a strict feature-based module structure with standalone components:
+The Angular application follows a strict feature-based structure with standalone components:
 
-- **`core/`**: Singleton services (`ApiService`, `AuthService`) that are shared across the application
-- **`layout/`**: Shell components (`NavComponent`, `FooterComponent`) rendered outside the router outlet for persistence
-- **`features/`**: One folder per route, each containing a single lazy-loaded component
-- **`shared/`**: Reusable building blocks (`AnimateOnScrollDirective`, `GoToTopComponent`, `ComingSoonComponent`)
+- **`core/`**: Singleton services registered with `providedIn: 'root'`. `AuthService` owns authentication state (user signal, loading signal, token management) and is consumed by nav, features-bug, admin, login, and oauth-callback. `ApiService` wraps all HTTP communication with typed methods for every endpoint and automatic JWT header injection.
 
-The router is configured in `app.routes.ts` with every route using `loadComponent` for code splitting. The root `App` component eagerly imports layout and shared components, which themselves only import from `core/` or Angular framework modules.
+- **`layout/`**: Shell components rendered directly by `App` outside the router outlet. `NavComponent` is sticky-positioned at the top with responsive hamburger menu and profile modal. `FooterComponent` is a dark banner with navigation links and copyright. Both persist across route changes without re-initialization.
 
-All components use signal-based state management (`signal()`, `computed()`) instead of class properties for reactive state. Two-way data binding in forms uses `[(ngModel)]` from `FormsModule`.
+- **`features/`**: One folder per route, each containing a single lazy-loaded component with its template, styles, and logic. Every route in `app.routes.ts` uses `loadComponent` for code splitting. Feature components import only from `core/` services, `shared/` directives, or Angular framework modules.
+
+- **`shared/`**: Reusable building blocks. `AnimateOnScrollDirective` provides declarative scroll-triggered animations. `GoToTopComponent` is a fixed-position FAB with scroll visibility. `ComingSoonComponent` is a placeholder for unimplemented routes.
+
+State management is entirely signal-based (`signal()`, `computed()`) distributed across components rather than centralized. The `AuthService` user signal is the only shared reactive state -- individual components (e.g., `FeaturesBugComponent`) hold their own signal state for posts, filters, loading, and UI toggles.
 
 ### Backend Architecture
 
-The Hono application uses a flat route structure with middleware stacking:
+The Hono application uses a flat route structure defined in `workers/src/index.ts`. All business logic is implemented directly in route handlers rather than abstracted into separate controllers or services. The file is a single 854-line module containing:
 
-1. **CORS Middleware** (global): Sets permissive CORS headers for the frontend origin, preflight handling
-2. **JWT Middleware** (`/api/*`): Attempts to decode Bearer tokens on every API request, populating `c.get('user')` if valid
-3. **Security Headers Middleware** (global): Sets `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `X-XSS-Protection`
-4. **Rate Limit Middleware** (selected routes): Applies to auth endpoints (10 req/min) and posts/vote endpoints (30 req/min)
+- Route definitions (app.get, app.post, app.put, app.delete)
+- Input validation (email format, username charset/length, password length, post content length, vote values)
+- Database queries via D1 prepared statements with `.bind()`
+- PBKDF2 hash/compare helper functions (Web Crypto API)
+- Constant-time string comparison utility
 
-Route handlers perform input validation, database operations via D1 prepared statements, and return JSON responses.
+Three middleware files provide cross-cutting concerns:
+- `auth.ts` -- JWT verification and authorization guards (requireAuth, requireAdmin, requireUserVote, requireUserAccount)
+- `rate-limit.ts` -- Per-IP windowed rate limiting backed by D1
 
-### Authentication Flow
-
-**Email/Password**: User submits credentials -> Worker looks up user, verifies PBKDF2 hash -> issues JWT (7-day expiry) -> frontend stores in `sessionStorage`
-
-**Google OAuth**: User clicks "Continue with Google" -> redirected to Google -> callback receives authorization code -> Worker exchanges for access token -> fetches Google user info -> finds or creates user -> redirects to frontend with JWT in URL fragment
-
-**Token-based session**: JWT is sent as `Authorization: Bearer <token>` header on every API request. The `jwtVerify` middleware decodes it and attaches the user payload to the request context. The `requireAuth` guard rejects unauthenticated requests. `requireUserAccount` additionally prevents admin tokens (which have `id=0`) from accessing user-specific features.
-
-### Data Flow (Voting)
-
-1. User clicks vote button (up or down)
-2. `FeaturesBugComponent.vote()` runs: checks auth, guards against duplicate clicks, computes optimistic delta
-3. Optimistic update applied immediately to local post list
-4. `ApiService.vote()` sends POST to `/api/vote` with `{ post_id, value }`
-5. Server processes: upserts vote record, adjusts post upvotes count
-6. Server returns authoritative `upvotes` count
-7. On success: replaces optimistic value with server value
-8. On failure: reverts optimistic update to previous state
-
----
+No repository pattern, no service layer, no DTOs -- the backend is intentionally flat and minimal. Each route handler receives the request, validates input, queries D1, and returns JSON.
 
 ## Core Components
 
-### Frontend
+### AuthService (`src/app/core/services/auth.service.ts`)
 
-#### `AuthService` (`src/app/core/services/auth.service.ts`)
-- **Purpose**: Singleton managing authentication state across the application
-- **State**: `user` signal (User | null), `loading` signal (boolean)
-- **Storage**: JWT token in `sessionStorage` (cleared on tab close)
-- **Methods**: `login()`, `adminLogin()`, `initFromToken()`, `loadUser()`, `updateProfile()`, `deleteAccount()`, `logout()`
-- **Initialization**: Calls `loadUser()` in constructor to restore session from stored token on app load
+**Purpose**: Singleton service managing authentication state across the entire application.
 
-#### `ApiService` (`src/app/core/services/api.service.ts`)
-- **Purpose**: Typed HTTP client wrapping native `fetch` with JWT header injection
-- **Base URL**: `https://drclash-api.babarmeet86.workers.dev`
-- **Methods**: Typed wrappers for all API endpoints — auth, posts, voting, admin, replies
-- **Error handling**: Parses JSON error responses, extracts `error` field and optional `code` field into thrown Error
+**State**:
+- `user`: `signal<User | null>` -- current authenticated user or null
+- `loading`: `signal<boolean>` -- initialization status (true during session restoration)
 
-#### `FeaturesBugComponent` (`src/app/features/features-bug/`)
-- **Purpose**: Main feature/bug request board with voting, filtering, and submission
-- **State**: `posts` signal array, `activeFilter` signal, `showForm` signal
-- **Filtering**: All / Features / Bugs / Done — each reloads from API with type/status params
-- **Pagination**: Cursor-based "Load More" with `nextCursor` from API response
-- **Voting**: Optimistic updates with rollback on failure, pending vote guard (`pendingVotes` Set)
-- **Content truncation**: Posts longer than 200 characters are truncated with "Read more" expand
+**Token Management**:
+- Internally caches the JWT in a private `_token` field for in-memory access
+- Persists to `sessionStorage` (cleared when browser tab closes) via `getItem`/`setItem`/`removeItem`
+- Never exposes the raw token to consuming components
 
-#### `AdminComponent` (`src/app/features/admin/`)
-- **Purpose**: Administrative dashboard for managing posts and replies
-- **Auth**: Separate admin login against environment variables (not user accounts)
-- **Operations**: Mark done, reopen, delete posts; create, edit, delete admin replies; bulk clear done posts
-- **Reply editing**: Inline edit mode per reply with save/cancel
+**Initialization**:
+- Constructor calls `loadUser()` synchronously
+- `loadUser()` checks `sessionStorage` for token, validates via `GET /api/auth/me`, populates `user` signal
+- If validation fails, clears the token and sets `user` to null
+- `initFromToken(token)` is used by `OauthCallbackComponent` after Google OAuth -- sets the token then validates
 
-#### `NavComponent` (`src/app/layout/nav/`)
-- **Purpose**: Sticky top navigation with responsive hamburger menu
-- **Features**: Profile modal (username editing, account deletion), conditional admin link, auth-aware Login/Logout button
-- **Responsive**: Desktop shows horizontal links; mobile uses full-screen overlay with staggered link animations
-- **Keyboard**: Escape key closes menu
+**Methods**:
+- `login(email, password)` -- authenticates via email/password, stores token, sets user
+- `adminLogin(username, password)` -- authenticates against env var credentials, stores token, sets user
+- `updateProfile(username)` -- calls profile API, updates user signal with response
+- `deleteAccount()` -- calls account deletion API, clears token and user signal
+- `logout()` -- clears token from sessionStorage and user signal (no server-side invalidation)
 
-#### `AnimateOnScrollDirective` (`src/app/shared/directives/animate-on-scroll.directive.ts`)
-- **Purpose**: CSS class-based scroll-triggered animation using IntersectionObserver
-- **Behavior**: If element is already in viewport on init, immediately adds `is-visible` class. Otherwise adds `will-animate` class and observes with 0.1 threshold, swapping to `is-visible` on intersection.
+**Key Design Detail**: AuthService delegates all HTTP calls to ApiService. It never constructs URLs or headers directly.
 
-#### `GoToTopComponent` (`src/app/shared/components/go-to-top.component.ts`)
-- **Purpose**: Fixed-position button that appears after scrolling past 200px
-- **Behavior**: Smooth-scrolls to top on click. Visibility controlled by scroll event listener.
+### ApiService (`src/app/core/services/api.service.ts`)
 
-### Backend
+**Purpose**: Typed HTTP client providing a single interface for all API communication.
 
-#### Hono Route Handlers (`workers/src/index.ts`)
-- **Purpose**: All API endpoints for the application
-- **Structure**: Flat route definitions on the Hono app instance
-- **Auth routes**: Register, login, forgot password, reset password, Google OAuth (init + callback), profile update, account deletion, /me
-- **Post routes**: List (with filtering/pagination/cursor), single post, replies, create post
-- **Vote route**: Single endpoint handling upvote, downvote, vote removal, and vote switching
-- **Admin routes**: Login, list posts, mark done, reopen, reply, edit reply, delete reply, delete post, bulk clear done
+**Architecture**:
+- Base URL is hardcoded as a module constant (`const API = '...'`)
+- Every request automatically injects `Content-Type: application/json` and `Authorization: Bearer <token>` (if token exists in sessionStorage)
+- Token is read directly from `sessionStorage` rather than from `AuthService`, avoiding circular dependency
+- All HTTP methods return typed `Promise<T>` via the private `request<T>()` method
 
-#### Auth Middleware (`workers/src/middleware/auth.ts`)
-- **Purpose**: JWT verification and authorization guards
-- **`jwtVerify`**: Extracts and verifies Bearer token, attaches user to context. Non-blocking — allows unauthenticated requests to proceed with `user = null`
-- **`requireAuth`**: Rejects with 401 if no authenticated user
-- **`requireAdmin`**: Rejects with 403 if user is not admin
-- **`requireUserVote`**: Rejects admin tokens (cannot vote)
-- **`requireUserAccount`**: Rejects admin tokens (cannot use user features like profile update, post creation)
+**Error Handling**:
+- Parses JSON error responses
+- Extracts `error` field as message and optional `code` field (used by login for `oauth_only` detection)
+- Throws a standard `Error` object with optional `.code` property
 
-#### Rate Limit Middleware (`workers/src/middleware/rate-limit.ts`)
-- **Purpose**: Per-IP windowed rate limiting using D1 storage
-- **IP identification**: Uses `cf-connecting-ip` header (Cloudflare) with SHA-256 hash to avoid storing raw IPs
-- **Window**: Configurable window size in milliseconds
-- **Storage**: Upserts into `rate_limits` table with composite key `(path:ipHash, windowKey)`. Fail-open on DB error.
-- **Strict limit**: 10 requests per 60 seconds (auth endpoints)
-- **Standard limit**: 30 requests per 60 seconds (posts, vote endpoints)
+**Method Surface** (all typed):
+- Auth: `login`, `register`, `me`, `forgotPassword`, `resetPassword`
+- Posts: `getPosts`, `createPost`
+- Voting: `vote`
+- Profile: `updateProfile`, `deleteAccount`
+- Admin: `adminLogin`, `adminGetPosts`, `adminMarkDone`, `adminReopen`, `adminDeletePost`, `adminReply`, `adminEditReply`, `adminDeleteReply`, `adminClearDone`
+- Replies: `getReplies`
 
----
+### FeaturesBugComponent (`src/app/features/features-bug/features-bug.component.ts`)
 
-## APIs
+**Purpose**: Main feature/bug request board -- the primary user-facing interface.
 
-All API endpoints are served from `https://drclash-api.babarmeet86.workers.dev`.
+**State Ownership** (all component-scoped signals):
+- `posts`: `signal<Post[]>` -- current page of posts
+- `activeFilter`: `signal<FilterTab>` -- 'all', 'feature', 'bug', or 'done'
+- `showForm`: `signal<boolean>` -- submission overlay visibility
+- `loading`, `submitting`, `loadingMore`: boolean signals
+- `expandedPosts`: `signal<Set<number>>` -- posts with expanded content
+- `pendingVotes`: `Set<number>` -- posts with in-flight vote requests (prevents duplicate submissions)
+- `nextCursor`: `number | null` -- cursor for pagination
+
+**Filtering**:
+- Filter tabs (All, Features, Bugs, Done) trigger fresh API calls with type/status parameters
+- "Done" filter maps to `status=done` without type filter
+- "Features"/"Bugs" filter maps to the corresponding type with `status=current`
+- "All" passes neither type nor status (defaults to `status=current` server-side)
+
+**Pagination**:
+- Cursor-based keyset pagination using the last post ID from each batch
+- `loadMore()` fetches the next page and appends to the existing `posts` signal array
+- Server returns `limit + 1` items -- the extra item indicates "has more" without a separate count query
+
+**Voting**:
+- `vote(postId, value)` implements optimistic updates with server reconciliation
+- Sequence: check auth -> guard against pending -> compute optimistic delta -> update local state -> POST to server -> replace with authoritative server value -> on error, revert to previous state
+- If `post.user_vote === value`, the call becomes a toggle-off (`value = 0`)
+- Delta calculation: `value === 0` removes existing vote; existing vote exists but differs = `value * 2` (switch); no existing vote = `value` (new)
+- Minimum floor of 0 on optimistic upvote count (prevents negative display)
+
+### AdminComponent (`src/app/features/admin/admin.component.ts`)
+
+**Purpose**: Administrative dashboard for managing posts and replies.
+
+**Authentication**: Separate login flow that checks credentials against `ADMIN_USERNAME` and `ADMIN_PASSWORD` environment variables. Admin JWT tokens have `id: 0` and `is_admin: true`. The admin panel conditionally renders -- login form when not authenticated, dashboard when authenticated.
+
+**Operations**:
+- Post management: mark done, reopen, delete (with `confirm()` dialog)
+- Reply management: create, inline edit, delete (with `confirm()`)
+- Bulk clear: delete all done posts with their associated votes and replies
+- Filter tabs for status-based viewing (All, Current, Done)
+
+**State**: Uses `Record<number, string>` maps for reply text inputs and editing state, `Set<number>` for tracking in-flight operations.
+
+### NavComponent (`src/app/layout/nav/nav.component.ts`)
+
+**Purpose**: Sticky top navigation bar with responsive behavior and profile management.
+
+**Desktop**: Horizontal link layout with `routerLinkActive` styling (red underline on active), "Hello, username" button for authenticated users, CTA login button for unauthenticated users.
+
+**Mobile** (`max-width: 768px`):
+- Hamburger button with animated span-to-X transition
+- Full-screen dark overlay menu with `backdrop-filter: blur(16px)`
+- Staggered link animations using `transition-delay` increments (0.04s per item)
+- Escape key closes menu via `@HostListener('document:keydown.escape')`
+
+**Profile Modal**: Dark overlay with centered card containing username display/edit, account deletion flow (two-step confirmation), and logout. All interactions are inline (no separate route).
+
+### AnimateOnScrollDirective (`src/app/shared/directives/animate-on-scroll.directive.ts`)
+
+**Purpose**: Declarative scroll-triggered fade-in animation using the IntersectionObserver API, avoiding scroll event listener overhead.
+
+**Behavior**:
+- On `ngOnInit`, checks if the element is already in the viewport via `getBoundingClientRect()`
+- If visible: immediately adds `is-visible` CSS class
+- If not visible: adds `will-animate` CSS class, creates an IntersectionObserver with `threshold: 0.1`, swaps to `is-visible` on intersection
+- Disconnects the observer after the first intersection (one-time animation)
+- Cleans up observer on `ngOnDestroy`
+
+**CSS Contract**: Host components define transitions on `[animateOnScroll]` with `.will-animate` (hidden state) and `.is-visible` (visible state) selectors.
+
+### GoToTopComponent (`src/app/shared/components/go-to-top.component.ts`)
+
+**Purpose**: Fixed-position scroll-to-top button with visibility threshold.
+
+- Listens to `window:scroll` via `@HostListener`, sets `visible` to `true` when `scrollY > 200`
+- CSS transition handles opacity and translateY for smooth appear/disappear
+- `pointer-events: none` / `auto` prevents interaction when hidden
+- Click triggers `window.scrollTo({ top: 0, behavior: 'smooth' })`
+
+### Backend Route Handlers (`workers/src/index.ts`)
+
+**Purpose**: All API endpoints implemented as a single flat module (854 lines).
+
+**Design**: No controllers, no services, no repositories. Each route handler is a Hono middleware function that:
+1. Parses request body from `c.req.json()` (POST/PUT) or query parameters (GET)
+2. Validates input with inline checks (type, length, format)
+3. Executes D1 prepared statements via `c.env.DB.prepare().bind().run()/.all()/.first()`
+4. Returns JSON responses via `c.json()`
+5. Wraps business logic in try/catch, returning 400 for malformed requests
+
+**Boundaries**: The `Bindings` type interface defines the shape of `c.env` -- all environment variables and the D1 binding are strongly typed.
+
+### Auth Middleware (`workers/src/middleware/auth.ts`)
+
+**Purpose**: JWT verification and authorization guards.
+
+**`jwtVerify`**: Non-blocking middleware. Extracts Bearer token, verifies HS256 signature via `hono/jwt`'s `verify()`. On success, attaches `{ id, email, username, is_admin }` to Hono's context (`c.set('user', ...)`). On verification failure, silently continues with no user -- the request proceeds as unauthenticated.
+
+**`requireAuth`**: Blocks requests with no authenticated user, returns 401.
+
+**`requireAdmin`**: Blocks non-admin users, returns 403.
+
+**`requireUserVote`**: Blocks unauthenticated requests (401) and admin tokens (403). Admin tokens have `id: 0` which has no corresponding foreign key in the votes table.
+
+**`requireUserAccount`**: Blocks unauthenticated requests (401) and admin tokens (403). Prevents admin tokens from accessing user-specific features like profile updates, post creation, and account deletion.
+
+### Rate Limit Middleware (`workers/src/middleware/rate-limit.ts`)
+
+**Purpose**: Per-IP windowed rate limiting using D1 storage.
+
+**IP Identification**: Uses `cf-connecting-ip` header (Cloudflare's authentic IP header) with fallback to `x-forwarded-for` and then `'unknown'`.
+
+**IP Privacy**: IP is hashed using SHA-256 via `crypto.subtle.digest()`, truncated to 16 hex characters. Raw IPs are never stored.
+
+**Window Algorithm**:
+1. Compute `windowKey` by dividing current Unix timestamp by the window size
+2. Upsert into `rate_limits` table with composite key `(path:ipHash, windowKey)`
+3. ON CONFLICT increment count
+4. Read back count and compare against max
+5. Return 429 if exceeded
+
+**Failure Mode**: Catches all errors with `console.error()` and allows the request through (fail-open). The rate limiter depends on D1 availability -- if D1 is down, rate limiting is bypassed.
+
+## Routing
+
+### Frontend Routes (`src/app/app.routes.ts`)
+
+| Path | Component | Lazy-loaded | Auth Required | Description |
+|---|---|---|---|---|
+| `/` | `HomeComponent` | Yes | No | Landing page with hero, feature cards, app store links |
+| `/features-bug` | `FeaturesBugComponent` | Yes | No (read), Yes (vote/submit) | Feature/bug request board |
+| `/login` | `LoginComponent` | Yes | No | Login/register form, Google OAuth, forgot password |
+| `/admin` | `AdminComponent` | Yes | Admin | Admin dashboard (post/reply management) |
+| `/oauth-callback` | `OauthCallbackComponent` | Yes | No | Google OAuth redirect handler |
+| `/reset-password` | `ResetPasswordComponent` | Yes | No | Password reset form with token from query param |
+| `/privacy-policy` | `PrivacyPolicyComponent` | Yes | No | Privacy policy legal page |
+| `/terms-conditions` | `TermsConditionsComponent` | Yes | No | Terms & conditions legal page |
+| `**` (wildcard) | Redirect to `/` | — | — | Catch-all fallback |
+
+All routes use `loadComponent` for code splitting. No `canActivate` guards -- authentication enforcement is handled at the component level or at the API level.
+
+## API Documentation
+
+All API endpoints are served from the Cloudflare Workers backend under the `/api/` path prefix.
 
 ### Health
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/health` | No | Returns `{ ok: true }` |
+| Method | Path | Auth | Rate Limited | Description |
+|---|---|---|---|---|
+| GET | `/api/health` | No | No | Returns `{ ok: true }` |
 
 ### Authentication
 
 | Method | Path | Auth | Rate Limit | Description |
-|--------|------|------|------------|-------------|
-| POST | `/api/auth/register` | No | Strict | Create account with email, username, password |
-| POST | `/api/auth/login` | No | Strict | Login with email + password, returns JWT |
-| POST | `/api/auth/forgot-password` | No | Strict | Sends password reset email via Resend |
-| POST | `/api/auth/reset-password` | No | Strict | Reset password using token from email |
-| GET | `/api/auth/google` | No | None | Redirect to Google OAuth consent screen |
-| GET | `/api/auth/google/callback` | No | None | OAuth callback, redirects with JWT fragment |
-| GET | `/api/auth/me` | Optional | None | Returns current user or null |
-| PUT | `/api/auth/profile` | Required | None | Update username |
-| DELETE | `/api/auth/account` | Required | None | Delete account and all associated data |
+|---|---|---|---|---|
+| POST | `/api/auth/register` | No | Strict (10/min) | Create account with email, username, password |
+| POST | `/api/auth/login` | No | Strict (10/min) | Authenticate with email + password, returns JWT + user |
+| POST | `/api/auth/forgot-password` | No | Strict (10/min) | Sends password reset email via Resend API |
+| POST | `/api/auth/reset-password` | No | Strict (10/min) | Reset password using token from email |
+| GET | `/api/auth/google` | No | No | Redirect to Google OAuth 2.0 consent screen |
+| GET | `/api/auth/google/callback` | No | No | OAuth callback, exchanges code for token, redirects with JWT fragment |
+| GET | `/api/auth/me` | Optional | No | Returns current authenticated user or null |
+| PUT | `/api/auth/profile` | Required (non-admin) | No | Update username |
+| DELETE | `/api/auth/account` | Required (non-admin) | No | Delete account and all associated data |
 
-**Register request**: `{ email, username, password }`
-**Login request**: `{ email, password }`
-**Login response**: `{ token: string, user: { id, email, username, is_admin } }`
-**Forgot password request**: `{ email }`
-**Forgot password response**: `{ message: string }` (always the same message regardless of whether email exists)
-**Reset password request**: `{ token: string, password: string }`
-**Profile update request**: `{ username }`
+**Register Request**: `{ email: string, username: string, password: string }` -- Username validation: 2-30 chars, letters/numbers/hyphens/underscores only. Password minimum 6 characters. Email max 254 characters, validated against regex.
+
+**Login Request/Response**: `{ email, password }` -> `{ token: string, user: { id, email, username, is_admin } }`. OAuth-only accounts return 401 with `code: 'oauth_only'`.
+
+**Forgot Password**: Always returns `{ message: string }` regardless of whether the email exists. Same message text for both cases to prevent email enumeration. Sends email via Resend API with 1-hour expiring reset link.
+
+**Reset Password**: Requires `{ token: string, password: string }`. Token is verified as a JWT signed with the application JWT_SECRET and must have `purpose: 'password-reset'`.
+
+**Google OAuth Flow**:
+1. `GET /api/auth/google` -- generates random UUID state, stores in `rate_limits` table (300s expiry), redirects to Google
+2. `GET /api/auth/google/callback` -- validates state, exchanges authorization code for access token, fetches user info from Google's `oauth2/v2/userinfo`, finds or creates user, issues application JWT, redirects to frontend at `/oauth-callback#token=<jwt>`
 
 ### Posts
 
 | Method | Path | Auth | Rate Limit | Description |
-|--------|------|------|------------|-------------|
-| GET | `/api/posts` | Optional | Standard | List posts with optional type/status/cursor/limit filters |
-| GET | `/api/posts/:id` | Optional | None | Get single post with replies |
-| GET | `/api/posts/:id/replies` | No | None | Get replies for a post |
-| POST | `/api/posts` | Required | Standard | Create a new feature request or bug report |
+|---|---|---|---|---|
+| GET | `/api/posts` | Optional | Standard (30/min) | List posts with optional type/status/cursor/limit filters |
+| GET | `/api/posts/:id` | Optional | No | Get single post with replies and user vote status |
+| GET | `/api/posts/:id/replies` | No | No | Get replies for a specific post |
+| POST | `/api/posts` | Required (non-admin) | Standard (30/min) | Create a new feature request or bug report |
 
-**Posts list query params**: `type` (feature|bug), `status` (current|done), `cursor` (numeric ID for pagination), `limit` (max 50)
-**Posts list response**: `{ posts: Post[], nextCursor: number | null }` — replies are batch-fetched and included inline
-**Create post request**: `{ type: "feature"|"bug", title, content }`
+**List Query Parameters**: `type` (feature|bug), `status` (current|done, default: current), `cursor` (numeric post ID for keyset pagination), `limit` (max 50, default: 20).
+
+**List Response**: `{ posts: Post[], nextCursor: number | null }`. Each post includes `user_vote` (1, -1, or null for current user) and `replies` array (batch-fetched in a single query using `WHERE post_id IN (...)`).
+
+**Cache**: Response includes `Cache-Control: public, max-age=30, s-maxage=60`.
+
+**Create Post Request**: `{ type: "feature"|"bug", title: string, content: string }`. Title minimum 3 characters, maximum 200. Content maximum 50,000 characters.
 
 ### Voting
 
 | Method | Path | Auth | Rate Limit | Description |
-|--------|------|------|------------|-------------|
-| POST | `/api/vote` | Required (non-admin) | Standard | Upvote (1), downvote (-1), or remove (0) vote |
+|---|---|---|---|---|
+| POST | `/api/vote` | Required (non-admin) | Standard (30/min) | Cast, switch, or remove a vote |
 
 **Request**: `{ post_id: number, value: -1 | 0 | 1 }`
-**Vote logic**:
-- `value = 0`: Remove existing vote
-- `value` matches existing vote: Toggle off (remove)
-- `value` differs from existing vote: Switch vote (adjust by `value * 2`)
-- No existing vote: Insert new vote (adjust by `value`)
+
+**Vote Logic** (server-side, single route handler):
+- `value === 0`: Remove existing vote if one exists, decrement `posts.upvotes` by the removed value
+- `value` matches existing vote: Toggle off -- delete the vote, decrement `posts.upvotes`
+- `value` differs from existing vote: Switch -- update vote value, adjust `posts.upvotes` by `value * 2` (e.g., switching from +1 to -1 decrements by 2)
+- No existing vote: Insert new vote, increment `posts.upvotes` by `value`
+
+**Response**: `{ upvotes: number }` -- authoritative vote count from the server.
 
 ### Admin
 
 | Method | Path | Auth | Rate Limit | Description |
-|--------|------|------|------------|-------------|
-| POST | `/api/admin/login` | No | Strict | Admin login against env vars |
-| GET | `/api/admin/posts` | Admin | None | List all posts with optional status filter |
-| PUT | `/api/admin/posts/:id/done` | Admin | None | Mark post as done |
-| PUT | `/api/admin/posts/:id/reopen` | Admin | None | Reopen a done post |
-| DELETE | `/api/admin/posts/:id` | Admin | None | Delete post and associated votes/replies |
-| DELETE | `/api/admin/posts/done` | Admin | None | Delete all done posts and their votes/replies |
-| POST | `/api/admin/posts/:id/reply` | Admin | None | Reply to a post |
-| PUT | `/api/admin/replies/:id` | Admin | None | Edit a reply |
-| DELETE | `/api/admin/replies/:id` | Admin | None | Delete a reply |
+|---|---|---|---|---|
+| POST | `/api/admin/login` | No | Strict (10/min) | Admin login against environment variables |
+| GET | `/api/admin/posts` | Admin | No | List all posts with optional status filter |
+| PUT | `/api/admin/posts/:id/done` | Admin | No | Mark post as done |
+| PUT | `/api/admin/posts/:id/reopen` | Admin | No | Reopen a done post |
+| DELETE | `/api/admin/posts/:id` | Admin | No | Delete post and associated votes/replies |
+| DELETE | `/api/admin/posts/done` | Admin | No | Delete all done posts and their votes/replies |
+| POST | `/api/admin/posts/:id/reply` | Admin | No | Create a reply on a post |
+| PUT | `/api/admin/replies/:id` | Admin | No | Edit a reply's content |
+| DELETE | `/api/admin/replies/:id` | Admin | No | Delete a reply |
 
-**Admin login request**: `{ username, password }` (matches `ADMIN_USERNAME` and `ADMIN_PASSWORD` env vars)
+**Admin Login**: Compares `username` and `password` directly against `ADMIN_USERNAME` and `ADMIN_PASSWORD` environment variables. On success, issues a JWT with `id: 0`, `email: 'admin@drclash'`, `username: 'admin'`, `is_admin: true`, and 7-day expiry.
 
-### Error Responses
+**Admin Authorization**: Admin routes use `requireAuth` middleware with inline `user.is_admin` checks returning 403 rather than the dedicated `requireAdmin` middleware. The `requireAdmin` middleware exists in `auth.ts` but is not used by any route.
 
-All errors return JSON with shape `{ error: string }` and optionally `{ code: string }`. Common HTTP status codes: 400 (validation), 401 (unauthorized), 403 (forbidden), 404 (not found), 409 (conflict), 429 (rate limit), 500 (server error).
+### Error Response Format
 
----
+All errors return JSON with shape `{ error: string }`, optionally with a `code` field for programmatic handling.
+
+| Status | Meaning | Common Cases |
+|---|---|---|
+| 400 | Bad Request | Missing fields, validation failures, invalid JSON |
+| 401 | Unauthorized | Missing/expired/invalid JWT, wrong credentials |
+| 403 | Forbidden | Admin token accessing user features, non-admin accessing admin routes |
+| 404 | Not Found | Non-existent post ID |
+| 409 | Conflict | Duplicate email/username during registration, taken username during profile update |
+| 429 | Rate Limit | Exceeded request quota |
+| 500 | Internal Server Error | Database failure, unexpected error |
+
+## Authentication
+
+### Identity Model
+
+The application supports two distinct identity types:
+
+1. **User Accounts**: Stored in the `users` table with email, username, password_hash (nullable for OAuth-only users), and optional oauth_google_id. JWT tokens carry `id > 0` and `is_admin: false`.
+
+2. **Admin Identity**: Authenticated against environment variables (`ADMIN_USERNAME`, `ADMIN_PASSWORD`). Not stored in the database. JWT tokens carry `id: 0`, `email: 'admin@drclash'`, and `is_admin: true`. Completely separate from the user authentication system.
+
+### Email/Password Authentication Flow
+
+```
+LoginComponent                  AuthService                  ApiService            Worker (Hono)
+     │                             │                             │                     │
+     │  submit(email, password)    │                             │                     │
+     ├────────────────────────────►│                             │                     │
+     │                             │  login(email, password)     │                     │
+     │                             ├────────────────────────────►│                     │
+     │                             │                             │  POST /api/auth/login│
+     │                             │                             ├────────────────────►│
+     │                             │                             │                     ├─ Lookup user by email
+     │                             │                             │                     ├─ PBKDF2 verify hash
+     │                             │                             │                     ├─ Sign JWT (7-day expiry)
+     │                             │                             │◄────────────────────┤
+     │                             │◄────────────────────────────┤                     │
+     │                             │  Store token in sessionStorage                     │
+     │                             │  Set user signal                                   │
+     │◄────────────────────────────┤                             │                     │
+```
+
+### Google OAuth Flow
+
+```
+LoginComponent                  Browser                     Worker API              Google
+     │                             │                             │                     │
+     │  googleLogin()              │                             │                     │
+     ├────────────────────────────►│                             │                     │
+     │  window.location.href =     │                             │                     │
+     │  /api/auth/google           │                             │                     │
+     │                             │  GET /api/auth/google       │                     │
+     │                             ├────────────────────────────►│                     │
+     │                             │                             ├─ Generate UUID state
+     │                             │                             ├─ Store in rate_limits table
+     │                             │                             ├─ Redirect to Google   │
+     │                             │◄────────────────────────────┤                     │
+     │                             │  302 Redirect               │                     │
+     │                             │                             │                     │
+     │                             │  GET accounts.google.com    │                     │
+     │                             ├──────────────────────────────────────────────────►│
+     │                             │  User consents                                    │
+     │                             │◄──────────────────────────────────────────────────┤
+     │                             │  Redirect to callback with code + state           │
+     │                             │                             │                     │
+     │                             │  GET /api/auth/google/callback?code=...&state=... │
+     │                             ├────────────────────────────►│                     │
+     │                             │                             ├─ Validate state
+     │                             │                             ├─ Exchange code for token
+     │                             │                             ├─ Fetch Google user info
+     │                             │                             ├─ Find or create user
+     │                             │                             ├─ Sign JWT
+     │                             │                             ├─ Redirect to /oauth-callback#token=<jwt>
+     │                             │◄────────────────────────────┤                     │
+     │                             │  302 Redirect               │                     │
+     │                             │                             │                     │
+     │  /oauth-callback#token=...  │                             │                     │
+     │◄────────────────────────────┤                             │                     │
+     │                             │                             │                     │
+     OauthCallbackComponent        │                             │                     │
+     ├─ Parse fragment             │                             │                     │
+     ├─ Clean URL (replaceState)   │                             │                     │
+     ├─ sessionStorage.setItem     │                             │                     │
+     ├─ auth.initFromToken()       │                             │                     │
+     └─ Navigate to /features-bug  │                             │                     │
+```
+
+### Password Reset Flow
+
+```
+Forgot Password            Worker API               Resend API           User Email
+     │                         │                        │                    │
+     │  POST /api/auth/        │                        │                    │
+     │  forgot-password        │                        │                    │
+     │  { email }              │                        │                    │
+     ├────────────────────────►│                        │                    │
+     │                         ├─ Lookup user by email  │                    │
+     │                         ├─ Sign reset JWT        │                    │
+     │                         │  (1-hour expiry)       │                    │
+     │                         ├─ POST /emails          │                    │
+     │                         ├───────────────────────►│                    │
+     │                         │                        ├───────────────────►│
+     │                         │                        │   Reset email sent │
+     │◄────────────────────────┤                        │                    │
+     │  { message } (same      │                        │                    │
+     │   whether email exists) │                        │                    │
+```
+
+### Authorization Model
+
+Authorization is enforced at three levels:
+
+1. **API Middleware** (backend): Four guard functions in `auth.ts` enforce different authorization levels:
+   - `requireAuth`: Any valid JWT required (401 if missing)
+   - `requireAdmin`: Valid JWT with `is_admin: true` required (401 if missing, 403 if not admin)
+   - `requireUserVote`: Valid JWT, non-admin required (403 for admin tokens with `id: 0`)
+   - `requireUserAccount`: Valid JWT, non-admin, non-zero id required (403 for admin tokens)
+
+2. **Inline Checks** (backend): Admin routes use `requireAuth` + inline `user.is_admin` check returning 403. The voting endpoint uses `requireUserVote` to prevent admins from voting.
+
+3. **Conditional Rendering** (frontend): Components check `auth.user()` to conditionally render UI:
+   - Vote buttons are disabled when `auth.user()` is null
+   - Create post buttons are only shown when `auth.user()` is truthy
+   - Admin link in nav conditionally appears when `auth.user()?.is_admin` is true
+   - Admin dashboard shows login form or dashboard based on admin authentication state
+
+### Token Lifecycle
+
+- **Auth Tokens**: 7-day expiry (`exp + 604800`). Stored in `sessionStorage` (cleared on tab close). No refresh token mechanism -- users re-authenticate after tab close or token expiry.
+- **Password Reset Tokens**: 1-hour expiry (`exp + 3600`), issued with `purpose: 'password-reset'` claim that is verified by the reset endpoint.
+- **Admin Tokens**: Same 7-day expiry as user auth tokens, but with `id: 0` and `is_admin: true`.
 
 ## Data Model
 
-### Entity Relationship
+### Entity Relationship Diagram
 
 ```
-users (1) ─────< (N) posts (1) ─────< (N) votes
-                              (1) ─────< (N) replies
+users (1) ──────────< (N) posts (1) ──────────< (N) votes
+                                (1) ──────────< (N) replies
+                              rate_limits (no direct FK relationships)
 ```
 
 ### Tables
 
 #### `users`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PK, AUTOINCREMENT |
-| email | TEXT | UNIQUE, NOT NULL |
-| username | TEXT | UNIQUE, NOT NULL |
-| password_hash | TEXT | Nullable (null for OAuth-only users) |
-| oauth_google_id | TEXT | UNIQUE, nullable |
-| is_admin | INTEGER | DEFAULT 0 |
-| created_at | TEXT | DEFAULT datetime('now') |
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| id | INTEGER | PK, AUTOINCREMENT | Unique user identifier |
+| email | TEXT | UNIQUE, NOT NULL | User email address |
+| username | TEXT | UNIQUE, NOT NULL | Display name (alphanumeric + hyphens + underscores) |
+| password_hash | TEXT | NULLABLE | PBKDF2 hash in format `pbkdf2:100000:<salt_hex>:<hash_hex>`. Null for OAuth-only users. |
+| oauth_google_id | TEXT | UNIQUE, NULLABLE | Google account ID for OAuth-linked accounts |
+| is_admin | INTEGER | DEFAULT 0 | Admin flag (boolean: 0 or 1) |
+| created_at | TEXT | DEFAULT datetime('now') | ISO 8601 timestamp |
 
 #### `posts`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PK, AUTOINCREMENT |
-| user_id | INTEGER | NOT NULL, FK -> users(id) |
-| type | TEXT | CHECK('feature', 'bug') |
-| status | TEXT | DEFAULT 'current', CHECK('current', 'done') |
-| title | TEXT | NOT NULL |
-| content | TEXT | NOT NULL (max 50,000 chars) |
-| upvotes | INTEGER | DEFAULT 0 |
-| created_at | TEXT | DEFAULT datetime('now') |
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| id | INTEGER | PK, AUTOINCREMENT | Unique post identifier |
+| user_id | INTEGER | NOT NULL, FK -> users(id) | Author |
+| type | TEXT | CHECK('feature', 'bug') | Post category |
+| status | TEXT | DEFAULT 'current', CHECK('current', 'done') | Lifecycle status |
+| title | TEXT | NOT NULL | Post title (3-200 chars) |
+| content | TEXT | NOT NULL | Post body (max 50,000 chars) |
+| upvotes | INTEGER | DEFAULT 0 | Net vote count (denormalized for fast ordering) |
+| created_at | TEXT | DEFAULT datetime('now') | ISO 8601 timestamp |
 
-Indexes: `posts(status)`, `posts(type)`, `posts(upvotes DESC)`
+**Indexes**: `posts(status)`, `posts(type)`, `posts(upvotes DESC)`
 
 #### `votes`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PK, AUTOINCREMENT |
-| post_id | INTEGER | NOT NULL, FK -> posts(id) |
-| user_id | INTEGER | NOT NULL, FK -> users(id) |
-| value | INTEGER | CHECK(1, -1) |
-| created_at | TEXT | DEFAULT datetime('now') |
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| id | INTEGER | PK, AUTOINCREMENT | Unique vote identifier |
+| post_id | INTEGER | NOT NULL, FK -> posts(id) | Target post |
+| user_id | INTEGER | NOT NULL, FK -> users(id) | Voter |
+| value | INTEGER | CHECK(1, -1) | 1 = upvote, -1 = downvote |
+| created_at | TEXT | DEFAULT datetime('now') | ISO 8601 timestamp |
 
-UNIQUE(post_id, user_id). Indexes: `votes(post_id)`, `votes(user_id)`
+**Constraints**: UNIQUE(post_id, user_id) -- prevents duplicate votes (enables upsert logic). **Indexes**: `votes(post_id)`, `votes(user_id)`
 
 #### `replies`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | INTEGER | PK, AUTOINCREMENT |
-| post_id | INTEGER | NOT NULL, FK -> posts(id) ON DELETE CASCADE |
-| content | TEXT | NOT NULL |
-| created_at | TEXT | DEFAULT datetime('now') |
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| id | INTEGER | PK, AUTOINCREMENT | Unique reply identifier |
+| post_id | INTEGER | NOT NULL, FK -> posts(id) ON DELETE CASCADE | Target post |
+| content | TEXT | NOT NULL | Reply body (max 50,000 chars) |
+| created_at | TEXT | DEFAULT datetime('now') | ISO 8601 timestamp |
+
+Note: `ON DELETE CASCADE` ensures replies are automatically deleted when a post is deleted.
 
 #### `rate_limits`
-| Column | Type | Constraints |
-|--------|------|-------------|
-| key | TEXT | PK (composite with window_key) |
-| window_key | INTEGER | PK (composite with key) |
-| count | INTEGER | DEFAULT 1 |
-| expires_at | INTEGER | NOT NULL |
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| key | TEXT | PK (composite) | Composite key: `{path}:{ip_hash}` or `oauth_state:{uuid}` |
+| window_key | INTEGER | PK (composite) | Time window identifier (Unix timestamp / window size) |
+| count | INTEGER | DEFAULT 1 | Request count in current window |
+| expires_at | INTEGER | NOT NULL | Unix timestamp for expiration cleanup |
 
-Index: `rate_limits(expires_at)`
+**Index**: `rate_limits(expires_at)`
 
-### Migrations
-
-The database is managed through sequential SQL migration files in `workers/migrations/`:
-- `0001_initial.sql`: Creates `users`, `posts`, and `votes` tables with indexes
-- `0002_rate_limit.sql`: Creates `rate_limits` table for rate limiting and OAuth state storage
-- `0003_replies.sql`: Creates `replies` table for admin post responses
+The `rate_limits` table serves a dual purpose:
+1. **Rate limiting**: Composite key `({path}:{ip_hash}, windowKey)` tracks request counts per endpoint per IP per time window
+2. **OAuth state storage**: Key `oauth_state:{uuid}` with `window_key=0` stores OAuth state parameters temporarily (300s expiry)
 
 ### Data Lifecycle
 
-1. User registers -> row in `users` (with or without `password_hash` depending on auth method)
-2. User creates post -> row in `posts` with `status='current'`, `upvotes=0`
-3. Users vote -> rows in `votes`, `posts.upvotes` updated via SQL
-4. Admin marks done -> `posts.status` set to `'done'`
-5. Admin replies -> rows in `replies`
-6. Admin clears done -> all done posts and their associated votes/replies deleted
-7. User deletes account -> cascade: votes on own posts, own votes, own posts, user row
+1. **Registration**: INSERT into `users` with email, username, password_hash (or oauth_google_id for OAuth). Username uniqueness is enforced server-side with a separate check query.
 
----
+2. **Post Creation**: INSERT into `posts` with user_id, type, status='current', upvotes=0. The newly created post is immediately fetched and returned with author username.
+
+3. **Voting**: INSERT/UPSERT/DELETE on `votes` table with corresponding UPDATE on `posts.upvotes`. The `upvotes` column on `posts` is a denormalized counter updated atomically within the same transaction by the same endpoint. Vote value is restricted to 1 (up) or -1 (down); value 0 on the API triggers the "remove vote" code path.
+
+4. **Post Completion**: Admin sets `posts.status = 'done'`. Posts remain visible with a "Done" type badge and green border-top.
+
+5. **Admin Replies**: INSERT into `replies`. Replies are fetched alongside posts in a batch query. No user association -- replies are implicitly from admin (no author column).
+
+6. **Account Deletion**: Manual cascade in three DELETE operations:
+   - DELETE votes WHERE user_id = ?
+   - DELETE votes WHERE post_id IN (SELECT id FROM posts WHERE user_id = ?)
+   - DELETE posts WHERE user_id = ?
+   - DELETE users WHERE id = ?
+
+7. **Bulk Clear Done**: Manual cascade:
+   - DELETE votes WHERE post_id IN (SELECT id FROM posts WHERE status = 'done')
+   - DELETE replies WHERE post_id IN (SELECT id FROM posts WHERE status = 'done')
+   - DELETE posts WHERE status = 'done'
+
+### Migration Strategy
+
+Migrations are sequential SQL files in `workers/migrations/`:
+- `0001_initial.sql` -- Foundation schema (users, posts, votes) with indexes
+- `0002_rate_limit.sql` -- Adds rate_limits table for rate limiting and OAuth state
+- `0003_replies.sql` -- Adds replies table for admin responses (ON DELETE CASCADE)
+
+Applied via `wrangler d1 migrations apply drclash-db` (or with `--local` for local development). Existing migrations should never be modified after production application.
 
 ## Configuration
 
-### `wrangler.toml`
-Cloudflare Workers configuration. Defines the worker name (`drclash-api`), entry point, compatibility date, D1 database binding, and non-sensitive environment variables (`APP_URL`, `RESEND_SENDER_EMAIL`, `GOOGLE_CALLBACK_URL`). Sensitive values (`JWT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`) are set via `wrangler secret put`.
+### `wrangler.toml` (`workers/wrangler.toml`)
 
-### `.env.example`
-Template for all required environment variables: Cloudflare API credentials, JWT secret, Google OAuth client credentials, Resend API key/sender, admin credentials, and app URL.
+Cloudflare Workers configuration specifying:
+- Worker name: `drclash-api`
+- Entry point: `src/index.ts`
+- Compatibility date: `2025-01-01`
+- D1 database binding: `DB` -> database name `drclash-db` with a specific database ID
+- Public environment variables: `APP_URL`, `RESEND_SENDER_EMAIL`, `GOOGLE_CALLBACK_URL`
 
-### `angular.json`
-Angular CLI configuration. Uses `@angular/build:application` builder. Output hashing enabled for production. Budget warnings at 500kB initial / 6kB per component style.
+Sensitive values (`JWT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`) are excluded from `wrangler.toml` and set via `wrangler secret put`.
 
-### `vercel.json`
-Minimal Vercel configuration — only sets the project name to `drclash`.
+### `angular.json` (root)
 
-### `package.json` (root)
-Defines Angular application dependencies: `@angular/core` 21.2, `rxjs` 7.8, `tslib`. Dev dependencies: `@angular/build` 21.2, `@angular/cli` 21.2, `prettier`, `typescript` 5.9, `vitest` 4.0, `jsdom` 28.0.
+Angular CLI configuration using the application builder (`@angular/build:application`):
+- Browser entry: `src/main.ts`
+- Assets: `public/` directory served from root
+- Styles: `src/styles.css`
+- Production budgets: 500kB initial warning, 1MB initial error, 6kB per component style warning, 8kB error
+- Output hashing enabled for production cache busting
 
-### `package.json` (workers)
-Defines API dependencies: `hono` 4.6. Dev dependencies: `wrangler` 3.80, `@cloudflare/workers-types` 4.24, `typescript` 5.6.
+### `vercel.json` (root)
 
----
+Minimal Vercel configuration: only sets the project name to `drclash`. No rewrites, redirects, or headers configured.
+
+### `tsconfig.json` (root)
+
+Strict TypeScript configuration: `strict: true`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `skipLibCheck`, `isolatedModules`, `target: ES2022`, `module: preserve`. Angular compiler options enforce `strictInjectionParameters`, `strictInputAccessModifiers`, and `strictTemplates`.
+
+## Environment Variables
+
+All environment variables are consumed by the Cloudflare Workers backend through typed bindings in `workers/src/index.ts` (the `Bindings` interface). The frontend references no environment variables -- the API base URL is hardcoded in `api.service.ts`.
+
+| Variable | Required | Purpose | Consumer | Sensitive |
+|---|---|---|---|---|
+| `CLOUDFLARE_API_TOKEN` | Yes | Cloudflare API authentication for Wrangler | Wrangler CLI | Yes |
+| `CLOUDFLARE_ACCOUNT_ID` | Yes | Cloudflare account identifier | Wrangler CLI | Yes |
+| `JWT_SECRET` | Yes | HS256 signing key for all JWT tokens (auth + password reset) | Worker `index.ts` | Yes |
+| `GOOGLE_CLIENT_ID` | Yes | Google OAuth 2.0 client identifier | Worker `index.ts` | Yes |
+| `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth 2.0 client secret | Worker `index.ts` | Yes |
+| `GOOGLE_CALLBACK_URL` | Yes | OAuth redirect URI registered with Google | Worker `index.ts` | No (public) |
+| `RESEND_API_KEY` | Yes | API key for Resend transactional email service | Worker `index.ts` | Yes |
+| `RESEND_SENDER_EMAIL` | Yes | From address for password reset emails | Worker `index.ts` | No (public) |
+| `ADMIN_USERNAME` | Yes | Admin panel login username | Worker `index.ts` | Yes |
+| `ADMIN_PASSWORD` | Yes | Admin panel login password | Worker `index.ts` | Yes |
+| `APP_URL` | Yes | Frontend origin (used for CORS and redirect URLs) | Worker `index.ts` | No |
+
+`GOOGLE_CALLBACK_URL`, `RESEND_SENDER_EMAIL`, and `APP_URL` are stored as plain `[vars]` in `wrangler.toml`. The remaining sensitive values are set via `wrangler secret put` and are not committed to version control.
 
 ## Dependencies
 
@@ -513,142 +860,235 @@ Defines API dependencies: `hono` 4.6. Dev dependencies: `wrangler` 3.80, `@cloud
 
 ```
 AppComponent
-├── NavComponent ──────> AuthService ──────> ApiService
-├── RouterOutlet ──────> [Lazy-loaded routes]
-│   ├── HomeComponent ───> AnimateOnScrollDirective
+├── NavComponent ──────────> AuthService ──────> ApiService
+├── RouterOutlet ──────────> [Lazy-loaded routes]
+│   ├── HomeComponent ─────> AnimateOnScrollDirective
 │   ├── FeaturesBugComponent ──> ApiService, AuthService
-│   ├── LoginComponent ───> ApiService, AuthService
-│   ├── AdminComponent ───> ApiService, AuthService
-│   ├── OauthCallbackComponent ───> AuthService
-│   ├── ResetPasswordComponent ───> ApiService
-│   ├── PrivacyPolicyComponent ───> AnimateOnScrollDirective
-│   └── TermsConditionsComponent ───> AnimateOnScrollDirective
+│   ├── LoginComponent ────> ApiService, AuthService
+│   ├── AdminComponent ────> ApiService, AuthService
+│   ├── OauthCallbackComponent ──> AuthService
+│   ├── ResetPasswordComponent ──> ApiService
+│   ├── PrivacyPolicyComponent ──> AnimateOnScrollDirective
+│   └── TermsConditionsComponent ──> AnimateOnScrollDirective
 ├── FooterComponent
 └── GoToTopComponent
 ```
 
+**Key Dependency Characteristics**:
+- `NavComponent` depends on `AuthService` but not `ApiService` directly (delegates HTTP calls through AuthService)
+- `FeaturesBugComponent` depends on both `ApiService` (for posts/votes) and `AuthService` (for user state for conditional UI)
+- `AdminComponent` depends on both services -- uses AuthService for admin login state, ApiService for all admin operations
+- `LoginComponent` depends on both services -- uses AuthService for user login, ApiService for registration and password reset
+- Legal pages and home page only depend on `AnimateOnScrollDirective` from shared
+
 ### Key External Dependencies
 
-**`@angular/core` 21.2**: Standalone component bootstrap, signals, inject, HostListener, application config providers
-**`@angular/router` 21.2**: Lazy loading via `loadComponent`, `RouterLink`, `RouterLinkActive`, `RouterOutlet`
-**`@angular/forms` 21.2**: Template-driven forms via `FormsModule` and `[(ngModel)]`
-**`@angular/platform-browser/animations` 21.2**: Router transition animations (provider only, no custom animations used)
-**`hono` 4.6**: Lightweight TypeScript web framework for Cloudflare Workers. Provides routing, context, middleware, JWT signing/verification
-**`wrangler` 3.80**: Cloudflare Workers CLI for development, deployment, and D1 migrations
-**`vitest` 4.0 / `jsdom` 28.0**: Unit testing framework (configured but no test files found in the codebase)
+**`@angular/core` 21.2**: Provides the entire Angular framework -- standalone component bootstrap via `bootstrapApplication`, signals (`signal()`, `computed()`), dependency injection (`inject()`), `@Component` decorator, `@HostListener`, `ApplicationConfig`.
 
----
+**`@angular/router` 21.2**: Client-side routing with lazy loading via `loadComponent`, `RouterOutlet`, `RouterLink`, `RouterLinkActive` directives for navigation.
+
+**`@angular/forms` 21.2**: Template-driven forms via `FormsModule` and `[(ngModel)]` two-way binding. Used in login, registration, admin, features-bug submission, and profile editing.
+
+**`@angular/platform-browser/animations` 21.2**: Animation module provider (`provideAnimations()`) registered in app config but no custom Angular animations are implemented.
+
+**`@angular/build` 21.2**: Build tooling replacing the legacy `@angular-devkit/build-angular`. Uses esbuild-based application builder.
+
+**`hono` 4.6**: Lightweight TypeScript web framework optimized for edge runtimes. Provides routing, context management, middleware stacking, and JWT signing/verification (`hono/jwt`). The entire API surface is Hono's route definitions.
+
+**`wrangler` 3.80**: Cloudflare Workers CLI for local development (`wrangler dev`), deployment (`wrangler deploy`), and D1 migration management.
+
+**`vitest` 4.0 / `jsdom` 28.0**: Unit testing dependencies -- configured in `tsconfig.spec.json` but no test files exist in the codebase.
 
 ## Application Workflow
 
-### User visits the landing page
+### Complete User Visit Lifecycle
 
-1. Browser loads `index.html` — Google Fonts (Archivo Black, Work Sans, Space Mono) are preconnected and loaded
-2. Angular bootstraps from `main.ts` via `bootstrapApplication(App, appConfig)`
-3. `App` component renders immediately: `NavComponent` (sticky top bar), empty `<router-outlet>`, `FooterComponent`, `GoToTopComponent`
-4. `AuthService` constructor calls `loadUser()` — checks `sessionStorage` for existing JWT, if found calls `/api/auth/me` to validate and populate `user` signal
-5. Router resolves `/` (HomeComponent) — `HomeComponent` is lazy-loaded and rendered into the outlet
-6. `AnimateOnScrollDirective` on hero section checks viewport — if visible, immediately adds `is-visible` class, triggering CSS transitions
-7. User sees hero section with app logo, title, description, and app store buttons. Feature cards below with staggered animation delays
+1. Browser requests the application at `<frontend_url>`.
+2. Vercel serves `index.html` which includes Google Fonts preconnect links (Archivo Black, Work Sans, Space Mono).
+3. Angular bootstraps from `main.ts` via `bootstrapApplication(App, appConfig)`.
+4. The `App` component renders immediately with the nav, empty router outlet, footer, and go-to-top button.
+5. `AuthService` constructor fires `loadUser()`:
+   - Reads `sessionStorage` for an existing JWT token
+   - If no token: sets `loading` to false, `user` remains null
+   - If token found: calls `GET /api/auth/me`, populates `user` signal on success or clears token on failure
+6. Router resolves `/` to `HomeComponent` (lazy-loaded via `loadComponent`).
+7. `HomeComponent` renders the hero section with the `animateOnScroll` directive, which immediately adds `is-visible` (hero is likely in the viewport).
+8. Feature cards below use staggered `transition-delay` values (0ms, 80ms, 160ms, 240ms, 320ms, 400ms) for sequential fade-in animations.
+9. `NavComponent` checks `auth.user()` -- if null, shows "Login" button; if user exists, shows "Hello, {username}" button.
 
-### User browses the Feature/Bug board
+### Voting Lifecycle
 
-1. User clicks "Features / Bug" in navigation
-2. Router lazy-loads `FeaturesBugComponent`, replaces outlet content
-3. `ngOnInit` calls `loadPosts()` which calls `ApiService.getPosts()` with default filter (all, current)
-4. API returns posts with their replies and user's vote status (if authenticated). Response cached for 30 seconds (`Cache-Control` header)
-5. Posts rendered as cards with vote buttons, type labels, title, truncated content, author, date
-6. User can filter by clicking tabs (All / Features / Bugs / Done) — each triggers a fresh API call
-7. User can click "Load More" for cursor-based pagination
+1. User clicks the "+" (upvote) button on a post card.
+2. `FeaturesBugComponent.vote(postId, value)` executes:
+   - Guard: returns early if `auth.user()` is null (button should be disabled, but safeguard exists)
+   - Guard: returns early if `pendingVotes` Set already contains `postId` (prevents duplicate concurrent requests)
+   - If `post.user_vote === value`, sets value to 0 (toggle-off behavior)
+   - Captures `prev` state: `{ upvotes, user_vote }` for rollback
+   - Computes optimistic delta:
+     - `value === 0`: delta = `-(prev.user_vote ?? 0)` (remove existing vote)
+     - `prev.user_vote` exists but differs: delta = `value * 2` (switch vote direction)
+     - No existing vote: delta = `value` (new vote)
+   - Optimistically updates `posts` signal: `upvotes = Math.max(0, p.upvotes + delta)`, `user_vote = value === 0 ? null : value`
+   - Adds `postId` to `pendingVotes`
+   - Sends POST to `/api/vote` with `{ post_id, value }`
+3. Server processes vote logic (insert/update/delete on votes, adjust posts.upvotes via SQL).
+4. Server returns authoritative `{ upvotes }`.
+5. On success: replaces optimistic value with server value in `posts` signal.
+6. On failure: reverts to captured `prev` state.
+7. Removes `postId` from `pendingVotes`.
 
-### User votes on a post
+### Admin Management Lifecycle
 
-1. User must be authenticated — if not, vote buttons are disabled
-2. User clicks "+" (upvote) button
-3. Optimistic update: vote count adjusted immediately in local signal, button highlighted
-4. POST to `/api/vote` with `{ post_id, value: 1 }`
-5. Server processes vote logic (insert/update/delete in `votes` table, adjust `posts.upvotes`)
-6. On success: server returns authoritative `upvotes` count, local state updated
-7. On failure: optimistic update reverted to previous values
-
-### User submits a feature/bug
-
-1. Authenticated user clicks "+ Feature" or "+ Bug" — overlay form appears
-2. User fills title and description, clicks "Submit"
-3. POST to `/api/posts` with type, title, content
-4. Server validates (length, type), inserts into `posts` table
-5. New post returned and prepended to local list
-6. Form closes
-
-### Admin manages the board
-
-1. Admin navigates to `/admin` — sees admin login form if not authenticated as admin
-2. Admin enters credentials from environment variables, POST to `/api/admin/login`
-3. Server verifies against `ADMIN_USERNAME` / `ADMIN_PASSWORD` env vars, issues JWT with `is_admin: true` and `id: 0`
-4. Admin dashboard loads: table of all posts with ID, type, title, author, votes, status, actions, and reply management
-5. Admin can: mark as done, reopen, delete, reply (with edit/delete), bulk clear done items
-
----
+1. Admin navigates to `/admin`.
+2. `AdminComponent.ngOnInit()` checks `auth.user()?.is_admin`. If false, renders login form. If true, calls `loadPosts()`.
+3. Admin enters credentials, clicks Login.
+4. `auth.adminLogin()` calls `POST /api/admin/login`, server compares against env vars, returns JWT with `id: 0`, `is_admin: true`.
+5. Admin dashboard renders with table of all posts.
+6. Each row shows: ID, type badge, title, author, vote count, status badge, action buttons (Done/Reopen, Delete), and reply management (inline create/edit/delete).
+7. Marking done: `PUT /api/admin/posts/:id/done` sets `status = 'done'`. Posts reload.
+8. Bulk clear: `DELETE /api/admin/posts/done` deletes all done posts, their votes, and their replies in three sequential queries.
+9. Replies are managed inline: input field per post, Enter or Send button creates reply via `POST /api/admin/posts/:id/reply`. Existing replies show Edit/Delete buttons. Edit mode replaces content with input field + Save/Cancel.
 
 ## Performance Considerations
 
-- **Lazy-loaded routes**: Every page is a separate chunk loaded on demand — no unnecessary JavaScript on initial page load
-- **Cursor-based pagination**: The feature/bug board uses keyset pagination (cursor = last post ID) instead of offset pagination, avoiding the offset drift problem for frequently-updated data
-- **Optimistic voting**: Vote UI updates immediately without waiting for server confirmation, with rollback on failure
-- **Cache headers**: Post list responses include `Cache-Control: public, max-age=30, s-maxage=60` for CDN caching
-- **IntersectionObserver**: Scroll animations use the native IntersectionObserver API instead of scroll event listeners, avoiding main thread pressure
-- **Batch reply fetching**: When loading multiple posts, replies are fetched in a single batched query using `WHERE post_id IN (...)` instead of N+1 queries
-- **Database indexes**: Indexes on `posts(status)`, `posts(type)`, `posts(upvotes DESC)`, `votes(post_id)`, `votes(user_id)`, and `rate_limits(expires_at)` for query performance
-- **Go-to-top visibility**: Uses scroll event listener but only reads `window.scrollY`, avoiding layout thrashing
-
----
+- **Lazy-loaded routes**: Every page is a separate JavaScript chunk loaded on demand via `loadComponent`. The initial payload contains only the shell (nav, footer) and the first route's code.
+- **Cursor-based pagination**: Keyset pagination uses the last post ID as cursor instead of `OFFSET`. This avoids the offset drift problem where inserted/deleted records shift page boundaries.
+- **Optimistic voting**: Vote UI updates immediately (within the same synchronous execution context) without waiting for server confirmation. Server response authoritatively corrects the optimistic value.
+- **Cache headers**: Post list responses include `Cache-Control: public, max-age=30, s-maxage=60`, enabling CDN-level caching for 30 seconds.
+- **IntersectionObserver**: Scroll animations use the native IntersectionObserver API instead of scroll event listeners. Avoids main thread pressure from scroll event handlers.
+- **Batch reply fetching**: When loading a page of posts, replies are fetched in a single batched query using `WHERE post_id IN (...)`, avoiding N+1 queries.
+- **Database indexes**: Six indexes on query-critical columns: `posts(status)`, `posts(type)`, `posts(upvotes DESC)`, `votes(post_id)`, `votes(user_id)`, `rate_limits(expires_at)`.
+- **Go-to-top visibility**: Uses scroll event listener but only reads `window.scrollY`, avoiding layout thrashing from forced reflows.
 
 ## Security Considerations
 
-- **Password hashing**: PBKDF2 with 100,000 iterations of SHA-256 and per-password random 16-byte salt. Hash format: `pbkdf2:100000:<salt_hex>:<hash_hex>`
-- **Constant-time comparison**: Password verification uses constant-time string comparison to prevent timing attacks on password hashes
-- **JWT signing**: Tokens signed with HS256 using a server-side secret. 7-day expiry for auth tokens, 1-hour expiry for password reset tokens
-- **Token storage**: JWT stored in `sessionStorage` (cleared when browser tab closes), not `localStorage`
-- **IP hashing**: Rate limiting stores SHA-256 hashed IP addresses (truncated to 16 hex chars), never raw IPs
-- **Auth guards**: Multiple middleware layers prevent admin tokens from accessing user features (`requireUserAccount`, `requireUserVote`). Admin routes check `is_admin` flag on every request
-- **Input validation**: All user inputs validated server-side — email format, username charset/length, password length, post content length, vote values
-- **SQL injection**: All database queries use parameterized prepared statements (D1 `.bind()`), no string concatenation of user input
-- **Security headers**: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-XSS-Protection: 0`
-- **CORS restriction**: Access-Control-Allow-Origin set to `APP_URL` env var, not wildcard
-- **Forgot password info leak**: Same response message returned regardless of whether the email exists in the database, preventing email enumeration
-- **OAuth state parameter**: Google OAuth flow uses a random UUID `state` parameter stored in the `rate_limits` table to prevent CSRF on the callback
-- **Account deletion**: Cascading deletion of user's posts, votes, and votes on their posts ensures complete data removal
-- **Admin credentials**: Stored as environment variables, not in the database. Separate from user authentication system
-- **Rate limiting**: Auth endpoints limited to 10 requests/minute per IP to mitigate brute force and password spraying attacks
+- **Password hashing**: PBKDF2 with 100,000 iterations of SHA-256 and per-password random 16-byte salt. Hash stored in format `pbkdf2:100000:<salt_hex>:<hash_hex>`.
+- **Constant-time comparison**: Password verification uses XOR-based constant-time string comparison (`constantTimeEqual`) to prevent timing side-channel attacks.
+- **JWT signing**: All tokens signed with HS256 using `hono/jwt`. Auth tokens have 7-day expiry. Password reset tokens have 1-hour expiry with a `purpose` claim.
+- **Token storage**: JWT stored exclusively in `sessionStorage` (cleared on browser tab close), not `localStorage` (which persists across sessions).
+- **IP hashing**: Rate limiter computes SHA-256 hash of client IP (truncated to 16 hex characters). Raw IPs are never committed to storage.
+- **Authorization guards**: Four distinct middleware guard functions enforce separation between admin and user capabilities. Admin tokens cannot vote, create posts, update profiles, or delete accounts.
+- **Input validation**: All user inputs validated server-side: email format (regex), username charset/length (2-30, alphanumeric + hyphens + underscores), password length (minimum 6), post title/content length (3-200 / 50,000 max), vote values (-1, 0, 1).
+- **SQL injection prevention**: All database queries use D1 parameterized prepared statements (`.bind()` method). No string concatenation of user input into SQL queries.
+- **Security headers**: `X-Frame-Options: DENY` (prevents clickjacking), `X-Content-Type-Options: nosniff` (prevents MIME sniffing), `Referrer-Policy: strict-origin-when-cross-origin`, `X-XSS-Protection: 0` (modern browsers ignore this, but included).
+- **CORS restriction**: `Access-Control-Allow-Origin` set to the `APP_URL` environment variable value, not a wildcard. This restricts cross-origin requests to the known frontend origin.
+- **Forgot password info leak prevention**: Same generic response message returned regardless of whether the email exists in the database: `"If this email is registered, a reset link has been sent."`.
+- **OAuth CSRF protection**: Google OAuth flow generates a cryptographically random UUID state parameter stored in the `rate_limits` table with 300-second expiry. The callback validates this state before exchanging the authorization code.
+- **Admin credentials isolation**: Admin credentials are stored as Cloudflare Workers secrets (environment variables), never in the database. Separate from the user authentication system with no shared infrastructure.
+- **Account deletion completeness**: Account deletion manually cascades through four DELETE operations covering the user's votes, votes on the user's posts, the user's posts, and finally the user record.
 
----
+## Deployment Architecture
 
-## Limitations
+```
+┌──────────────────────┐       ┌──────────────────────────────┐
+│  Vercel              │       │  Cloudflare Workers          │
+│  ┌────────────────┐  │       │  ┌────────────────────────┐  │
+│  │ Angular SPA    │  │ HTTPS │  │ Hono API (drclash-api) │  │
+│  │ (drclash)      │◄─┼───────┼─►│ src/index.ts           │  │
+│  │                │  │       │  │                        │  │
+│  │ Static files   │  │       │  │ Middleware stack       │  │
+│  │ Build: dist/   │  │       │  └───────────┬────────────┘  │
+│  └────────────────┘  │       │              │               │
+└──────────────────────┘       │              │ D1 Binding    │
+                               │              ▼               │
+                               │  ┌────────────────────────┐  │
+                               │  │ Cloudflare D1 (SQLite) │  │
+                               │  │ drclash-db             │  │
+                               │  └────────────────────────┘  │
+                               └──────────────────────────────┘
 
-- **Vote endpoint not rate-limited for D1**: Rate limiting itself depends on D1 database availability. The rate limiter fails open (allows request) if the database is unavailable
-- **No email verification flow**: User registration does not require email verification — any valid email format can register
-- **Single admin account**: Admin credentials are hardcoded via environment variables, supporting only one admin identity
-- **No password change endpoint**: Users cannot change their password without going through the forgot-password flow
-- **OAuth-only account recovery**: If a user registered via Google OAuth and later needs to switch to email login, they must use the forgot-password flow (which generates a password reset token for their email)
-- **No refresh tokens**: JWT tokens cannot be refreshed — users must re-authenticate after 7 days
-- **No automated tests**: While Vitest and jsdom are configured as dependencies, no test files were found in the codebase
-- **Session storage only**: JWT is stored in `sessionStorage` — closing the browser tab requires re-authentication
-- **No offline support**: The Angular application requires network connectivity for all functionality
+Environment variables (secrets) ──> wrangler secret put
+D1 schema management ───────────> wrangler d1 migrations apply
+```
 
----
+**Frontend Deployment**: Angular application built with `ng build` (production mode triggers output hashing for cache busting) and deployed to Vercel. The `vercel.json` configuration only specifies the project name.
 
-## Future Maintenance Notes
+**Backend Deployment**: Cloudflare Worker deployed via `wrangler deploy`. The worker is named `drclash-api` and runs on Cloudflare's edge network. Sensitive environment variables are configured via `wrangler secret put` rather than in `wrangler.toml`. Database schema is managed through sequential SQL migration files applied via `wrangler d1 migrations apply`.
 
-- **D1 migration order**: Migrations are numbered sequentially. New migrations must maintain the naming convention (`0004_*.sql`) and be applied via `wrangler d1 migrations apply`
-- **Environment variables**: New secrets must be added via `wrangler secret put` and typed in the `Bindings` interface in `workers/src/index.ts`
-- **Route additions**: New routes must follow the pattern in `app.routes.ts` — use `loadComponent` for lazy loading. Feature folders must match the route path in kebab-case
-- **Component conventions**: Standalone components only. Use `input()`/`output()` signals over decorators. Use `inject()` over constructor injection. Use Angular 17+ control flow (`@if`, `@for`) over structural directives
-- **Design system**: All visual elements must adhere to the VoiceBox design system (`DESIGN.md`). Zero border-radius, no shadows, black/white/red palette only
-- **Database schema changes**: Add new migrations in `workers/migrations/`. Do not modify existing migration files after they have been applied to production. Reference: `0003_replies.sql` for the pattern
-- **Hono version**: The backend uses Hono 4.6. Hono's middleware API and JWT helpers (`hono/jwt`) are coupled to this version — verify compatibility before upgrading
-- **Angular version**: The frontend targets Angular 21.2. The `@angular/build` package replaces the legacy `@angular-devkit/build-angular` — ensure build configuration follows the new application builder pattern
+**Database**: Cloudflare D1 is a serverless SQLite database. It is accessed through the `DB` binding injected into the Worker runtime. No connection pooling, no replication configuration -- D1 handles this transparently.
 
----
+**CORS**: The backend sets `Access-Control-Allow-Origin` to the `APP_URL` environment variable value. This allows the frontend on Vercel to make cross-origin requests to the Workers backend.
+
+## CI/CD
+
+Not detected in the current implementation. No GitHub Actions workflows, no CI configuration files, no deployment pipeline configuration exists within the repository. The `.gitignore` file does include `.vercel/` suggesting Vercel may handle automatic deployments from the repository, but no explicit CI/CD configuration is present in the repository.
+
+## Engineering Decisions
+
+### Why a Serverless Backend (Cloudflare Workers + D1)
+
+The backend uses Cloudflare Workers with D1 (serverless SQLite) instead of a traditional server-hosted database. This eliminates infrastructure management -- no server provisioning, no connection pooling, no replication configuration, no OS patching. The Worker scales to zero when idle and cold-starts on demand. D1 provides ACID-compliant SQLite semantics without requiring a persistent connection. This architecture is well-suited for a low-to-medium traffic feedback portal where request volume is unpredictable.
+
+### Why Flat Route Handlers Instead of Layered Architecture
+
+The backend (`workers/src/index.ts`) implements all business logic directly in 854-line single file without controllers, services, or repositories. This is an intentional simplicity tradeoff: for the application's scope (5 database tables, ~20 endpoints), the overhead of layered abstractions would introduce complexity without proportional benefit. The tradeoff becomes limiting as the application grows -- adding features or endpoints directly increases the module's size and reduces maintainability.
+
+### Why Signal-Based State (Angular) Instead of a State Management Library
+
+The frontend uses Angular's built-in `signal()` API for reactive state rather than adopting NgRx, Akita, or other state management libraries. Signals are distributed across components (no centralized store) -- each component owns its own signal state. The `AuthService`'s user signal is the only shared reactive state. This keeps the architecture simple for the application's moderate complexity but means there is no single source of truth for data, no devtools for debugging state changes, and no built-in side-effect management.
+
+### Why Cursor Pagination Instead of Offset Pagination
+
+The post feed uses keyset (cursor) pagination with the last post ID as the cursor. This avoids the offset drift problem: with offset pagination, inserting or deleting records shifts page boundaries, potentially causing users to miss or see duplicate items. Cursor pagination provides a stable view regardless of concurrent writes. The tradeoff is that cursor pagination cannot support arbitrary page jumps (e.g., "Go to page 5").
+
+### Why Optimistic Updates for Voting
+
+Vote UI updates immediately without waiting for server confirmation. This provides instant feedback to the user -- critical for a high-frequency interaction like voting. The tradeoff is potential visual glitches if the server rejects the vote (reverted on error) or if the authoritative count differs from the optimistic projection (corrected when the server response arrives). The `pendingVotes` Set prevents duplicate concurrent requests.
+
+### Why sessionStorage Instead of localStorage
+
+JWT tokens are stored in `sessionStorage`, which is cleared when the browser tab closes. This means the user must re-authenticate on every new session. This is a security-conscious tradeoff: `sessionStorage` is isolated per-tab and does not persist to disk, reducing the risk of token theft from XSS or physical device access. The tradeoff is user convenience -- closing and reopening the browser requires re-login.
+
+### Why No Refresh Tokens
+
+The application uses single JWT tokens with 7-day expiry and provides no refresh token mechanism. Users must re-authenticate when the token expires. This simplifies the architecture (no refresh token rotation, no token storage strategy beyond `sessionStorage`) at the cost of UX -- an active user session terminates after 7 days regardless of activity.
+
+### Why No Email Verification
+
+User registration does not require email verification -- any valid email format can register. This removes friction from the onboarding flow. The tradeoff is that accounts can be created without proving email ownership, which may lead to spam accounts or user confusion about feature notifications. The forgot-password flow is available for users who need to set a password on OAuth-only accounts.
+
+### Why PBKDF2 Instead of bcrypt/Argon2
+
+The Web Crypto API (available in Cloudflare Workers) provides native PBKDF2 implementation. Bcrypt and Argon2 require external libraries which add bundle size and may not be available in the Workers runtime. PBKDF2 with 100,000 iterations of SHA-256 provides reasonable password stretching for this application's security requirements. The tradeoff is that PBKDF2 is more susceptible to GPU-based brute force than memory-hard functions like Argon2.
+
+### Why the `rate_limits` Table Serves Dual Purpose
+
+The `rate_limits` table stores both rate limit counters and OAuth state parameters. This avoids creating a separate table for temporary state storage. The OAuth state entries use `key` prefix `oauth_state:` and `window_key = 0`, distinguishing them from rate limit entries. Both types of data have natural expiry (rate limit windows expire; OAuth states have 300-second TTL). A periodic cleanup query could remove expired rows.
+
+## Interesting Implementation Details
+
+### PBKDF2 Password Hashing (Web Crypto API)
+
+The `pbkdf2Hash` function generates a 16-byte cryptographically random salt using `crypto.getRandomValues()`, derives 256 bits using PBKDF2 with SHA-256 and 100,000 iterations, and returns a self-describing string format: `pbkdf2:100000:<salt_hex>:<hash_hex>`. The `pbkdf2Compare` function parses this format to extract the salt and iterations, re-derives the hash from the provided password, and compares using constant-time XOR.
+
+### Constant-Time String Comparison
+
+The `constantTimeEqual` function prevents timing side-channel attacks on password verification. Standard string comparison (`===`) short-circuits on the first differing character, allowing an attacker to measure the comparison time and iteratively determine the correct hash. The constant-time implementation XORs every character and checks the final result, ensuring all operations take the same duration regardless of how many characters match.
+
+### Vote Delta Computation
+
+The vote logic uses a mathematically clean approach for adjusting the denormalized `upvotes` counter:
+- **New vote** (no existing vote): `posts.upvotes += value` (+1 or -1)
+- **Remove vote** (value = 0 or same value clicked again): `posts.upvotes -= existing_value` (reverses the original change)
+- **Switch vote** (different value): `posts.upvotes += value * 2` (removes the old vote's contribution and adds the new one in a single operation)
+
+This avoids a two-step read-adjust-write cycle.
+
+### Batch Reply Fetching Pattern
+
+When loading a page of posts with replies, the backend first queries the posts, then constructs a dynamic `WHERE post_id IN (?, ?, ...)` query with parameterized placeholders. This fetches all replies for the current page in a single database round-trip instead of N+1 queries. The replies are then grouped by `post_id` in a `Record<number, Reply[]>` map and attached to their respective posts before serialization.
+
+### Rate Limiter IP Privacy
+
+The rate limiter hashes the client IP using SHA-256 and truncates to 16 hex characters (64 bits). This provides a privacy-preserving rate limit key: the truncated hash cannot be reversed to recover the original IP, but provides sufficient collision resistance for rate-limiting purposes. The hash uses the full SHA-256 digest before truncation, not a reduced-round variant.
+
+### Admin Token Separation
+
+Admin tokens use `id: 0`, which has no corresponding row in the `users` foreign key table. This makes admin tokens structurally incompatible with user features (they would fail FK constraints on INSERT). The `requireUserVote` and `requireUserAccount` guards provide an additional software layer of separation on top of this database-level incompatibility.
+
+### OAuth State Storage in `rate_limits` Table
+
+The Google OAuth flow stores the anti-CSRF state parameter as a row in the `rate_limits` table with key `oauth_state:<uuid>`, `window_key = 0`, and 300-second expiry. This reuses an existing table rather than adding a dedicated OAuth state table. The UUID is generated via `crypto.randomUUID()` (standard Web Crypto API). After successful exchange, the state row is deleted. If the state parameter is reused or expired, the callback returns a 400 error.
 
 ## License
 

@@ -23,6 +23,10 @@
     }
   </div>
 
+  @if (loadError()) {
+    <div class="alert alert-error">{{ loadError() }}</div>
+  }
+
   @if (showForm()) {
     <div class="overlay" (click)="closeForm()">
       <div class="form-card" (click)="$event.stopPropagation()">
@@ -78,9 +82,13 @@
             </span>
           </div>
           <div class="card-vote">
-            <button class="vote-btn" [class.vote-up]="post.user_vote === 1" (click)="vote(post.id, 1)" [disabled]="!auth.user()">+</button>
+            <button class="vote-btn" [class.vote-up]="post.user_vote === 1" [class.vote-pending]="voteInFlight().has(post.id)" (click)="vote(post.id, 1)" [disabled]="!auth.user()">+</button>
             <span class="vote-count" [class.voted-up]="post.user_vote === 1" [class.voted-down]="post.user_vote === -1">{{ post.upvotes }}</span>
-            <button class="vote-btn" [class.vote-down]="post.user_vote === -1" (click)="vote(post.id, -1)" [disabled]="!auth.user()">-</button>
+            <button class="vote-btn" [class.vote-down]="post.user_vote === -1" [class.vote-pending]="voteInFlight().has(post.id)" (click)="vote(post.id, -1)" [disabled]="!auth.user()">-</button>
+            @let err = voteErrors().get(post.id);
+            @if (err) {
+              <span class="vote-error">{{ err }}</span>
+            }
           </div>
         </div>
         <div class="card-body">

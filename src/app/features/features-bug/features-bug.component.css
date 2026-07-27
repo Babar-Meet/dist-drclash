@@ -340,6 +340,23 @@
   color: #0A0A0A;
 }
 
+.vote-btn.vote-pending {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.vote-error {
+  display: block;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #EF4444;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+  text-align: center;
+}
+
 /* ── Card Body ── */
 
 .card-body {

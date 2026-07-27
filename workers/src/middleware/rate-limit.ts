@@ -36,4 +36,36 @@ async function rateLimit(c: Context, next: Next, max: number, windowMs: number) 
 function strictRateLimit(c: Context, next: Next) { return rateLimit(c, next, 10, 60_000); }
 function standardRateLimit(c: Context, next: Next) { return rateLimit(c, next, 30, 60_000); }
 
-export { strictRateLimit, standardRateLimit };
+async function voteRateLimit(c: Context, next: Next) {
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) return next();
+
+  try {
+    const { verify } = await import('hono/jwt');
+    const payload: any = await verify(authHeader.slice(7), c.env.JWT_SECRET, 'HS256');
+    const key = `vote:user:${payload.id}`;
+    const max = 60;
+    const windowMs = 60_000;
+    const now = Math.floor(Date.now() / 1000);
+    const windowKey = Math.floor(now / (windowMs / 1000));
+
+    await c.env.DB.prepare(
+      `INSERT INTO rate_limits (key, window_key, count, expires_at) VALUES (?, ?, 1, ?)
+       ON CONFLICT(key, window_key) DO UPDATE SET count = count + 1`
+    ).bind(key, windowKey, now + Math.ceil(windowMs / 1000)).run();
+
+    const row = await c.env.DB.prepare(
+      'SELECT count FROM rate_limits WHERE key = ? AND window_key = ?'
+    ).bind(key, windowKey).first() as { count: number } | null;
+
+    if (row && row.count > max) {
+      return c.json({ error: 'Too many votes. Please slow down.' }, 429);
+    }
+  } catch (e) {
+    console.error('Vote rate limit check failed:', e);
+  }
+
+  await next();
+}
+
+export { strictRateLimit, standardRateLimit, voteRateLimit };

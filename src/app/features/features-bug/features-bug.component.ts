@@ -7,6 +7,14 @@ import { DatePipe } from '@angular/common';
 
 type FilterTab = 'all' | 'feature' | 'bug' | 'done';
 
+interface VoteState {
+  intent: number | null;
+  inFlight: boolean;
+  error: string | null;
+  timer: ReturnType<typeof setTimeout> | null;
+  serverSnapshot: { upvotes: number; user_vote: number | null } | null;
+}
+
 @Component({
   selector: 'app-features-bug',
   imports: [FormsModule, DatePipe, RouterLink],
@@ -19,6 +27,7 @@ export class FeaturesBugComponent implements OnInit {
 
   posts = signal<ApiPost[]>([]);
   loading = signal(true);
+  loadError = signal<string | null>(null);
   activeFilter = signal<FilterTab>('all');
   showForm = signal(false);
   formType: 'feature' | 'bug' = 'feature';
@@ -28,7 +37,11 @@ export class FeaturesBugComponent implements OnInit {
   submitting = signal(false);
   nextCursor: number | null = null;
   loadingMore = false;
-  private pendingVotes = new Set<number>();
+
+  private voteStates = new Map<number, VoteState>();
+  voteErrors = signal<Map<number, string>>(new Map());
+  voteInFlight = signal<Set<number>>(new Set());
+
   expandedPosts = signal<Set<number>>(new Set());
   contentLimit = 200;
 
@@ -49,11 +62,63 @@ export class FeaturesBugComponent implements OnInit {
         this.posts.set(posts);
       }
       this.nextCursor = nextCursor;
-    } catch {}
+    } catch {
+      this.loadError.set('Failed to load posts. Check your connection.');
+    }
     this.loading.set(false);
     this.loadingMore = false;
-    // Scroll to top when filter changes
-    if (!cursor) window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (!cursor) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      this.replayPendingVotes();
+    }
+  }
+
+  private replayPendingVotes() {
+    const stored = sessionStorage.getItem('pendingVotes');
+    if (!stored) return;
+    try {
+      const pending: Record<number, number> = JSON.parse(stored);
+      const postMap = new Map(this.posts().map(p => [p.id, p]));
+      for (const [postIdStr, intent] of Object.entries(pending)) {
+        const postId = Number(postIdStr);
+        if (!postMap.has(postId)) continue;
+        if (intent !== -1 && intent !== 0 && intent !== 1) continue;
+
+        const state: VoteState = {
+          intent,
+          inFlight: false,
+          error: null,
+          timer: null,
+          serverSnapshot: {
+            upvotes: postMap.get(postId)!.upvotes,
+            user_vote: postMap.get(postId)!.user_vote
+          }
+        };
+        this.voteStates.set(postId, state);
+        this.applyOptimistic(postId);
+        this.flushVote(postId);
+      }
+    } catch {
+      sessionStorage.removeItem('pendingVotes');
+    }
+  }
+
+  private persistVoteState() {
+    try {
+      const pending: Record<number, number> = {};
+      for (const [postId, state] of this.voteStates) {
+        if (state.intent !== null) {
+          pending[postId] = state.intent;
+        }
+      }
+      if (Object.keys(pending).length > 0) {
+        sessionStorage.setItem('pendingVotes', JSON.stringify(pending));
+      } else {
+        sessionStorage.removeItem('pendingVotes');
+      }
+    } catch {
+      // sessionStorage quota exceeded or unavailable
+    }
   }
 
   setFilter(tab: string) {
@@ -68,40 +133,102 @@ export class FeaturesBugComponent implements OnInit {
     }
   }
 
-  async vote(postId: number, value: number) {
+  vote(postId: number, value: number) {
     if (!this.auth.user()) return;
-    if (this.pendingVotes.has(postId)) return;
+
     const post = this.posts().find(p => p.id === postId);
     if (!post) return;
 
     if (post.user_vote === value) value = 0;
 
-    const prev = { upvotes: post.upvotes, user_vote: post.user_vote };
-
-    const delta = value === 0
-      ? -(prev.user_vote ?? 0)
-      : (prev.user_vote ? value * 2 : value);
-
-    this.pendingVotes.add(postId);
-
-    this.posts.set(this.posts().map(p =>
-      p.id === postId
-        ? { ...p, upvotes: Math.max(0, p.upvotes + delta), user_vote: value === 0 ? null : value }
-        : p
-    ));
-
-    try {
-      const { upvotes } = await this.api.vote(postId, value);
-      this.posts.set(this.posts().map(p =>
-        p.id === postId ? { ...p, upvotes } : p
-      ));
-    } catch {
-      this.posts.set(this.posts().map(p =>
-        p.id === postId ? { ...p, upvotes: prev.upvotes, user_vote: prev.user_vote } : p
-      ));
+    let state = this.voteStates.get(postId);
+    if (!state) {
+      state = { intent: null, inFlight: false, error: null, timer: null, serverSnapshot: null };
+      this.voteStates.set(postId, state);
     }
 
-    this.pendingVotes.delete(postId);
+    state.error = null;
+    this.voteErrors.update(m => { const n = new Map(m); n.delete(postId); return n; });
+
+    if (!state.serverSnapshot) {
+      state.serverSnapshot = { upvotes: post.upvotes, user_vote: post.user_vote };
+    }
+
+    state.intent = value;
+    this.applyOptimistic(postId);
+    this.persistVoteState();
+
+    if (state.timer) clearTimeout(state.timer);
+    state.timer = setTimeout(() => this.flushVote(postId), 300);
+  }
+
+  private applyOptimistic(postId: number) {
+    const state = this.voteStates.get(postId);
+    if (!state || state.intent === null || !state.serverSnapshot) return;
+
+    const server = state.serverSnapshot;
+    const intent = state.intent;
+    const fromVote = server.user_vote ?? 0;
+    let delta: number;
+
+    if (intent === 0) {
+      delta = -fromVote;
+    } else if (fromVote === 0) {
+      delta = intent;
+    } else {
+      delta = intent * 2;
+    }
+
+    this.posts.update(posts => posts.map(p =>
+      p.id === postId
+        ? { ...p, upvotes: Math.max(0, server.upvotes + delta), user_vote: intent === 0 ? null : intent }
+        : p
+    ));
+  }
+
+  private async flushVote(postId: number) {
+    const state = this.voteStates.get(postId);
+    if (!state || state.intent === null || state.inFlight) return;
+
+    state.inFlight = true;
+    this.voteInFlight.update(s => { const n = new Set(s); n.add(postId); return n; });
+    state.timer = null;
+    const intentSent = state.intent;
+
+    try {
+      const result = await this.api.vote(postId, intentSent);
+
+      this.posts.update(posts => posts.map(p =>
+        p.id === postId
+          ? { ...p, upvotes: result.upvotes, user_vote: result.user_vote }
+          : p
+      ));
+
+      state.serverSnapshot = null;
+
+      if (state.intent !== intentSent) {
+        state.inFlight = false;
+        this.voteInFlight.update(s => { const n = new Set(s); n.delete(postId); return n; });
+        const post = this.posts().find(p => p.id === postId);
+        if (post) {
+          state.serverSnapshot = { upvotes: post.upvotes, user_vote: post.user_vote };
+        }
+        this.flushVote(postId);
+      } else {
+        state.intent = null;
+        state.inFlight = false;
+        this.voteInFlight.update(s => { const n = new Set(s); n.delete(postId); return n; });
+        this.voteStates.delete(postId);
+        this.persistVoteState();
+      }
+    } catch (e: any) {
+      state.inFlight = false;
+      this.voteInFlight.update(s => { const n = new Set(s); n.delete(postId); return n; });
+      state.error = e.message || 'Vote failed';
+      this.voteErrors.update(m => { const n = new Map(m); n.set(postId, state.error!); return n; });
+      this.persistVoteState();
+      state.timer = setTimeout(() => this.flushVote(postId), 2000);
+    }
   }
 
   toggleExpand(postId: number) {

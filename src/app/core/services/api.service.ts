@@ -86,7 +86,7 @@ export class ApiService {
 
   // Voting
   vote(postId: number, value: number) {
-    return this.post<{ upvotes: number }>('/api/vote', { post_id: postId, value });
+    return this.post<{ upvotes: number; user_vote: number | null }>('/api/vote', { post_id: postId, value });
   }
 
   // Profile

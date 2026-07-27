@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { sign, verify } from 'hono/jwt';
 import { getAuthUser, jwtVerify, requireAuth, requireUserAccount, requireUserVote } from './middleware/auth';
-import { strictRateLimit, standardRateLimit } from './middleware/rate-limit';
+import { strictRateLimit, standardRateLimit, voteRateLimit } from './middleware/rate-limit';
 
 type Bindings = {
   DB: D1Database;
@@ -47,7 +47,7 @@ app.use('/api/auth/forgot-password', strictRateLimit);
 app.use('/api/admin/login', strictRateLimit);
 app.use('/api/auth/reset-password', strictRateLimit);
 app.use('/api/posts', standardRateLimit);
-app.use('/api/vote', standardRateLimit);
+app.use('/api/vote', voteRateLimit);
 
 // ──────────────────────────────────────
 // Health check
@@ -538,56 +538,67 @@ app.post('/api/vote', requireUserVote, async (c) => {
       return c.json({ error: 'Value must be -1, 0, or 1.' }, 400);
     }
 
-    // Check post exists
-    const post = await c.env.DB.prepare('SELECT id FROM posts WHERE id = ?')
-      .bind(post_id).first();
+    const post = await c.env.DB.prepare('SELECT id, upvotes FROM posts WHERE id = ?')
+      .bind(post_id).first<any>();
     if (!post) {
       return c.json({ error: 'Post not found.' }, 404);
     }
 
-    // Upsert vote
     const existing = await c.env.DB.prepare(
       'SELECT id, value FROM votes WHERE post_id = ? AND user_id = ?'
     ).bind(post_id, user.id).first<any>();
 
+    const stmts: any[] = [];
+    let newUpvotes = post.upvotes;
+    let newUserVote: number | null = existing?.value ?? null;
+
     if (value === 0) {
-      // Remove any existing vote
       if (existing) {
-        await c.env.DB.prepare('DELETE FROM votes WHERE id = ?').bind(existing.id).run();
-        await c.env.DB.prepare(
-          'UPDATE posts SET upvotes = upvotes - ? WHERE id = ?'
-        ).bind(existing.value, post_id).run();
+        stmts.push(
+          c.env.DB.prepare('DELETE FROM votes WHERE id = ?').bind(existing.id)
+        );
+        stmts.push(
+          c.env.DB.prepare('UPDATE posts SET upvotes = MAX(0, upvotes - ?) WHERE id = ?').bind(existing.value, post_id)
+        );
+        newUpvotes = Math.max(0, post.upvotes - existing.value);
+        newUserVote = null;
       }
     } else if (existing) {
       if (existing.value === value) {
-        // Same vote — remove it (toggle off)
-        await c.env.DB.prepare('DELETE FROM votes WHERE id = ?').bind(existing.id).run();
-        await c.env.DB.prepare(
-          'UPDATE posts SET upvotes = upvotes - ? WHERE id = ?'
-        ).bind(value, post_id).run();
+        stmts.push(
+          c.env.DB.prepare('DELETE FROM votes WHERE id = ?').bind(existing.id)
+        );
+        stmts.push(
+          c.env.DB.prepare('UPDATE posts SET upvotes = MAX(0, upvotes - ?) WHERE id = ?').bind(value, post_id)
+        );
+        newUpvotes = Math.max(0, post.upvotes - value);
+        newUserVote = null;
       } else {
-        // Different vote — switch
-        await c.env.DB.prepare('UPDATE votes SET value = ? WHERE id = ?')
-          .bind(value, existing.id).run();
-        await c.env.DB.prepare(
-          'UPDATE posts SET upvotes = upvotes + ? WHERE id = ?'
-        ).bind(value * 2, post_id).run();
+        stmts.push(
+          c.env.DB.prepare('UPDATE votes SET value = ?, created_at = datetime(\'now\') WHERE id = ?').bind(value, existing.id)
+        );
+        stmts.push(
+          c.env.DB.prepare('UPDATE posts SET upvotes = MAX(0, upvotes + ?) WHERE id = ?').bind(value * 2, post_id)
+        );
+        newUpvotes = Math.max(0, post.upvotes + value * 2);
+        newUserVote = value;
       }
     } else {
-      // New vote
-      await c.env.DB.prepare(
-        'INSERT INTO votes (post_id, user_id, value) VALUES (?, ?, ?)'
-      ).bind(post_id, user.id, value).run();
-      await c.env.DB.prepare(
-        'UPDATE posts SET upvotes = upvotes + ? WHERE id = ?'
-      ).bind(value, post_id).run();
+      stmts.push(
+        c.env.DB.prepare('INSERT INTO votes (post_id, user_id, value) VALUES (?, ?, ?)').bind(post_id, user.id, value)
+      );
+      stmts.push(
+        c.env.DB.prepare('UPDATE posts SET upvotes = upvotes + ? WHERE id = ?').bind(value, post_id)
+      );
+      newUpvotes = post.upvotes + value;
+      newUserVote = value;
     }
 
-    const updated = await c.env.DB.prepare(
-      'SELECT upvotes FROM posts WHERE id = ?'
-    ).bind(post_id).first<any>();
+    if (stmts.length > 0) {
+      await c.env.DB.batch(stmts);
+    }
 
-    return c.json({ upvotes: updated.upvotes });
+    return c.json({ upvotes: newUpvotes, user_vote: newUserVote });
   } catch (e) {
     console.error('Vote error:', e);
     return c.json({ error: 'Invalid request.' }, 400);

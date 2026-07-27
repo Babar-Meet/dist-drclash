@@ -52,6 +52,13 @@ __screenshots__/
 Thumbs.db
 .vercel
 
+# Playwright
+playwright-report/
+test-results/
+
+# Dev server logs
+ng-serve.log
+
 # Tool caches
 .playwright-mcp/
 workers/.wrangler/

@@ -213,17 +213,17 @@ export class FeaturesBugComponent implements OnInit {
         }
         this.flushVote(postId);
       } else {
+        const currentPost = this.posts().find(p => p.id === postId);
         this.posts.update(posts => posts.map(p =>
           p.id === postId
-            ? { ...p, upvotes: result.upvotes, user_vote: result.user_vote }
+            ? { ...p, upvotes: result.upvotes, user_vote: currentPost?.user_vote ?? p.user_vote }
             : p
         ));
 
-        state.serverSnapshot = null;
         state.intent = null;
+        state.serverSnapshot = null;
         state.inFlight = false;
         this.voteInFlight.update(s => { const n = new Set(s); n.delete(postId); return n; });
-        this.voteStates.delete(postId);
         this.persistVoteState();
       }
     } catch (e: any) {

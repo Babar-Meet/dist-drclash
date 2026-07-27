@@ -212,13 +212,15 @@ describe('FeaturesBugComponent', () => {
       expect(state.serverSnapshot).toBeNull();
     });
 
-    it('removes from voteStates on successful flush with no chained intent', async () => {
+    it('clears state intent and snapshot after successful flush', async () => {
       api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
       component.vote(1, 1);
       const state = (component as any).voteStates.get(1);
       state.inFlight = false;
       await (component as any).flushVote(1);
-      expect((component as any).voteStates.has(1)).toBe(false);
+      const cleanState = (component as any).voteStates.get(1);
+      expect(cleanState.intent).toBeNull();
+      expect(cleanState.serverSnapshot).toBeNull();
     });
 
     it('rolls back to server snapshot on error', async () => {

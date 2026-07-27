@@ -116,7 +116,8 @@ export class MockApiHandler {
       if (value === 0) {
         newUserVote = null;
       } else if (post.user_vote === value) {
-        newUserVote = value;
+        newUpvotes = post.upvotes - value;
+        newUserVote = null;
       } else if (post.user_vote === -value) {
         newUpvotes = post.upvotes + value * 2;
         newUserVote = value;

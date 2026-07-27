@@ -71,11 +71,11 @@ export class ResetPasswordComponent {
     this.error.set('');
     this.success.set('');
     this.loading.set(true);
+    // Clear token from URL immediately
+    window.history.replaceState({}, '', window.location.pathname);
     try {
       const { message } = await this.api.resetPassword(token, this.password);
       this.success.set(message);
-      // Clear token from URL without reload
-      window.history.replaceState({}, '', window.location.pathname);
     } catch (e: any) {
       this.error.set(e.message);
     }

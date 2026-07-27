@@ -221,14 +221,14 @@ describe('FeaturesBugComponent', () => {
       expect((component as any).voteStates.has(1)).toBe(false);
     });
 
-    it('handles error and preserves optimistic state', async () => {
+    it('rolls back to server snapshot on error', async () => {
       api.vote.mockRejectedValue(new Error('Network error'));
       component.vote(1, 1);
       const state = (component as any).voteStates.get(1);
       state.inFlight = false;
       await (component as any).flushVote(1);
-      expect(component.posts()[0].upvotes).toBe(11);
-      expect(component.posts()[0].user_vote).toBe(1);
+      expect(component.posts()[0].upvotes).toBe(10);
+      expect(component.posts()[0].user_vote).toBeNull();
     });
 
     it('sets voteError on API failure', async () => {
@@ -249,14 +249,15 @@ describe('FeaturesBugComponent', () => {
       expect(component.voteInFlight().has(1)).toBe(false);
     });
 
-    it('sets retry timer on error', async () => {
-      const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
+    it('clears all state on error', async () => {
       api.vote.mockRejectedValue(new Error('Network error'));
       component.vote(1, 1);
       const state = (component as any).voteStates.get(1);
       state.inFlight = false;
       await (component as any).flushVote(1);
-      expect(setTimeoutSpy).toHaveBeenLastCalledWith(expect.any(Function), 2000);
+      expect(state.intent).toBeNull();
+      expect(state.serverSnapshot).toBeNull();
+      expect(state.timer).toBeNull();
     });
   });
 

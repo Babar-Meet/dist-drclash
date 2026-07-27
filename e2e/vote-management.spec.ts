@@ -39,6 +39,7 @@ async function clickVote(page, postId, direction) {
   const card = cardByPostId(page, postId);
   const btnIndex = direction === 'up' ? 0 : 1;
   await card.locator('.vote-btn').nth(btnIndex).click();
+  await page.waitForTimeout(10);
 }
 
 // ─── 1. BASIC VOTE OPERATIONS ───

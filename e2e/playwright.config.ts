@@ -40,6 +40,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     headless: HEADLESS,
     viewport: { width: 1280, height: 720 },
+
   },
 
   projects: [

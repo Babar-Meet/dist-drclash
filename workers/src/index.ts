@@ -35,6 +35,8 @@ app.use('/*', async (c, next) => {
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
   c.header('X-XSS-Protection', '0');
+  c.header('Content-Security-Policy', "default-src 'self'; script-src 'self' https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' " + (c.env.APP_URL || 'https://drclash.vercel.app') + "; img-src 'self' data:; base-uri 'self'; form-action 'self';");
+  c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   await next();
 });
 
@@ -129,7 +131,7 @@ app.post('/api/auth/login', async (c) => {
     }
 
     const token = await sign(
-      { id: user.id, email: user.email, username: user.username, is_admin: !!user.is_admin, exp: Math.floor(Date.now() / 1000) + 604800, iat: Math.floor(Date.now() / 1000) },
+      { sub: String(user.id), id: user.id, email: user.email, username: user.username, is_admin: !!user.is_admin, jti: crypto.randomUUID(), exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000) },
       c.env.JWT_SECRET
     );
 
@@ -159,7 +161,7 @@ app.post('/api/auth/forgot-password', async (c) => {
     }
 
     const resetToken = await sign(
-      { id: (user as any).id, purpose: 'password-reset', exp: Math.floor(Date.now() / 1000) + 3600 },
+      { sub: String((user as any).id), id: (user as any).id, purpose: 'password-reset', jti: crypto.randomUUID(), exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000) },
       c.env.JWT_SECRET
     );
 
@@ -191,6 +193,7 @@ app.post('/api/auth/reset-password', async (c) => {
   try {
     const { token, password } = await c.req.json();
     if (!token || !password) return c.json({ error: 'Token and password required.' }, 400);
+    if (password.length < 6) return c.json({ error: 'Password must be at least 6 characters.' }, 400);
 
     const payload: any = await verify(token, c.env.JWT_SECRET, 'HS256');
     if (payload.purpose !== 'password-reset') {
@@ -356,11 +359,10 @@ app.get('/api/auth/google/callback', async (c) => {
     }
 
     const token = await sign(
-      { id: user.id, email: user.email, username: user.username, is_admin: !!user.is_admin, exp: Math.floor(Date.now() / 1000) + 604800, iat: Math.floor(Date.now() / 1000) },
+      { sub: String(user.id), id: user.id, email: user.email, username: user.username, is_admin: !!user.is_admin, jti: crypto.randomUUID(), exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000) },
       c.env.JWT_SECRET
     );
 
-    // Redirect back to app with token
     return c.redirect(`${c.env.APP_URL}/oauth-callback#token=${token}`);
   } catch (e) {
     console.error('OAuth callback error:', e);
@@ -663,6 +665,8 @@ app.put('/api/admin/posts/:id/done', requireAuth, async (c) => {
   await c.env.DB.prepare('UPDATE posts SET status = ? WHERE id = ?')
     .bind('done', id).run();
 
+  await auditLog(c, 'mark_done', 'post', id);
+
   return c.json({ ok: true });
 });
 
@@ -676,6 +680,8 @@ app.put('/api/admin/posts/:id/reopen', requireAuth, async (c) => {
 
   await c.env.DB.prepare('UPDATE posts SET status = ? WHERE id = ?')
     .bind('current', id).run();
+
+  await auditLog(c, 'reopen', 'post', id);
 
   return c.json({ ok: true });
 });
@@ -704,6 +710,8 @@ app.post('/api/admin/posts/:id/reply', requireAuth, async (c) => {
     const reply = await c.env.DB.prepare(
       'SELECT id, post_id, content, created_at FROM replies WHERE id = ?'
     ).bind(meta.last_row_id).first();
+
+    await auditLog(c, 'create_reply', 'post', id);
 
     return c.json({ reply }, 201);
   } catch (e) {
@@ -736,6 +744,8 @@ app.put('/api/admin/replies/:id', requireAuth, async (c) => {
 
     if (!reply) return c.json({ error: 'Reply not found.' }, 404);
 
+    await auditLog(c, 'edit_reply', 'reply', id);
+
     return c.json({ reply });
   } catch (e) {
     console.error('Admin edit reply error:', e);
@@ -753,6 +763,8 @@ app.delete('/api/admin/replies/:id', requireAuth, async (c) => {
     if (!id) return c.json({ error: 'Invalid reply ID.' }, 400);
 
     await c.env.DB.prepare('DELETE FROM replies WHERE id = ?').bind(id).run();
+
+    await auditLog(c, 'delete_reply', 'reply', id);
 
     return c.json({ ok: true });
   } catch (e) {
@@ -777,6 +789,8 @@ app.delete('/api/admin/posts/done', requireAuth, async (c) => {
 
     await c.env.DB.prepare('DELETE FROM posts WHERE status = ?').bind('done').run();
 
+    await auditLog(c, 'clear_done', null, null);
+
     return c.json({ ok: true });
   } catch (e) {
     console.error('Clear done error:', e);
@@ -796,6 +810,8 @@ app.delete('/api/admin/posts/:id', requireAuth, async (c) => {
   await c.env.DB.prepare('DELETE FROM votes WHERE post_id = ?').bind(id).run();
   await c.env.DB.prepare('DELETE FROM posts WHERE id = ?').bind(id).run();
 
+  await auditLog(c, 'delete_post', 'post', id);
+
   return c.json({ ok: true });
 });
 
@@ -803,9 +819,9 @@ app.delete('/api/admin/posts/:id', requireAuth, async (c) => {
 app.post('/api/admin/login', async (c) => {
   try {
     const { username, password } = await c.req.json();
-    if (username === c.env.ADMIN_USERNAME && password === c.env.ADMIN_PASSWORD) {
+    if (constantTimeEqual(username, c.env.ADMIN_USERNAME) && constantTimeEqual(password, c.env.ADMIN_PASSWORD)) {
       const token = await sign(
-        { id: 0, email: 'admin@drclash', username: 'admin', is_admin: true, exp: Math.floor(Date.now() / 1000) + 604800, iat: Math.floor(Date.now() / 1000) },
+        { sub: '0', id: 0, email: 'admin@drclash', username: 'admin', is_admin: true, jti: crypto.randomUUID(), exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000) },
         c.env.JWT_SECRET
       );
       return c.json({ token, user: { username: 'admin', is_admin: true } });
@@ -816,6 +832,22 @@ app.post('/api/admin/login', async (c) => {
     return c.json({ error: 'Invalid request.' }, 400);
   }
 });
+
+// ──────────────────────────────────────
+// Audit log helper
+// ──────────────────────────────────────
+
+async function auditLog(c: Context, action: string, targetType: string | null, targetId: number | null, details: string | null = null) {
+  try {
+    const user = getAuthUser(c);
+    const adminId = user?.id ?? 0;
+    await c.env.DB.prepare(
+      'INSERT INTO audit_log (admin_id, action, target_type, target_id, details) VALUES (?, ?, ?, ?, ?)'
+    ).bind(adminId, action, targetType, targetId, details).run();
+  } catch (e) {
+    console.error('Audit log error:', e);
+  }
+}
 
 // ──────────────────────────────────────
 // PBKDF2 helpers (using Web Crypto API)

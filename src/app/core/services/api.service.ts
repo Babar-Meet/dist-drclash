@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
+import { environment } from '../../../environments/environment';
 
-const API = 'https://drclash-api.babarmeet86.workers.dev';
+const API = environment.apiUrl;
 
 export interface User {
   id: number;

@@ -139,8 +139,6 @@ export class FeaturesBugComponent implements OnInit {
     const post = this.posts().find(p => p.id === postId);
     if (!post) return;
 
-    if (post.user_vote === value) value = 0;
-
     let state = this.voteStates.get(postId);
     if (!state) {
       state = { intent: null, inFlight: false, error: null, timer: null, serverSnapshot: null };
@@ -152,7 +150,15 @@ export class FeaturesBugComponent implements OnInit {
 
     if (!state.serverSnapshot) {
       state.serverSnapshot = { upvotes: post.upvotes, user_vote: post.user_vote };
+    } else if (state.intent !== null) {
+      const currentPost = this.posts().find(p => p.id === postId);
+      if (currentPost) {
+        state.serverSnapshot = { upvotes: currentPost.upvotes, user_vote: currentPost.user_vote };
+      }
     }
+
+    const currentVote = state.intent ?? state.serverSnapshot.user_vote;
+    if (currentVote === value) value = 0;
 
     state.intent = value;
     this.applyOptimistic(postId);
@@ -198,14 +204,6 @@ export class FeaturesBugComponent implements OnInit {
     try {
       const result = await this.api.vote(postId, intentSent);
 
-      this.posts.update(posts => posts.map(p =>
-        p.id === postId
-          ? { ...p, upvotes: result.upvotes, user_vote: result.user_vote }
-          : p
-      ));
-
-      state.serverSnapshot = null;
-
       if (state.intent !== intentSent) {
         state.inFlight = false;
         this.voteInFlight.update(s => { const n = new Set(s); n.delete(postId); return n; });
@@ -215,6 +213,13 @@ export class FeaturesBugComponent implements OnInit {
         }
         this.flushVote(postId);
       } else {
+        this.posts.update(posts => posts.map(p =>
+          p.id === postId
+            ? { ...p, upvotes: result.upvotes, user_vote: result.user_vote }
+            : p
+        ));
+
+        state.serverSnapshot = null;
         state.intent = null;
         state.inFlight = false;
         this.voteInFlight.update(s => { const n = new Set(s); n.delete(postId); return n; });
@@ -222,12 +227,22 @@ export class FeaturesBugComponent implements OnInit {
         this.persistVoteState();
       }
     } catch (e: any) {
+      if (state.serverSnapshot) {
+        this.posts.update(posts => posts.map(p =>
+          p.id === postId
+            ? { ...p, upvotes: state.serverSnapshot!.upvotes, user_vote: state.serverSnapshot!.user_vote }
+            : p
+        ));
+      }
+
       state.inFlight = false;
       this.voteInFlight.update(s => { const n = new Set(s); n.delete(postId); return n; });
+      state.intent = null;
+      state.serverSnapshot = null;
+      state.timer = null;
       state.error = e.message || 'Vote failed';
       this.voteErrors.update(m => { const n = new Map(m); n.set(postId, state.error!); return n; });
       this.persistVoteState();
-      state.timer = setTimeout(() => this.flushVote(postId), 2000);
     }
   }
 

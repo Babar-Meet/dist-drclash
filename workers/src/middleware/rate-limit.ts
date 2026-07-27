@@ -1,18 +1,16 @@
 import { Context, Next } from 'hono';
 
-async function rateLimit(c: Context, next: Next, max: number, windowMs: number) {
+async function rateLimit(c: Context, next: Next, max: number, windowMs: number, failClosed = false) {
   const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
-  // hash the IP to avoid storing raw IPs
   const encoder = new TextEncoder();
   const ipHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(ip))))
-    .map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+    .map(b => b.toString(16).padStart(2, '0')).join('');
   const key = `${c.req.path}:${ipHash}`;
 
   const now = Math.floor(Date.now() / 1000);
   const windowKey = Math.floor(now / (windowMs / 1000));
 
   try {
-    // Upsert: insert or update count
     await c.env.DB.prepare(
       `INSERT INTO rate_limits (key, window_key, count, expires_at) VALUES (?, ?, 1, ?)
        ON CONFLICT(key, window_key) DO UPDATE SET count = count + 1`
@@ -27,14 +25,16 @@ async function rateLimit(c: Context, next: Next, max: number, windowMs: number) 
     }
   } catch (e) {
     console.error('Rate limit check failed:', e);
-    // Fail open — allow request if DB is down
+    if (failClosed) {
+      return c.json({ error: 'Service temporarily unavailable. Try again.' }, 503);
+    }
   }
 
   await next();
 }
 
-function strictRateLimit(c: Context, next: Next) { return rateLimit(c, next, 10, 60_000); }
-function standardRateLimit(c: Context, next: Next) { return rateLimit(c, next, 30, 60_000); }
+function strictRateLimit(c: Context, next: Next) { return rateLimit(c, next, 10, 60_000, true); }
+function standardRateLimit(c: Context, next: Next) { return rateLimit(c, next, 30, 60_000, false); }
 
 async function voteRateLimit(c: Context, next: Next) {
   const authHeader = c.req.header('Authorization');
@@ -63,6 +63,7 @@ async function voteRateLimit(c: Context, next: Next) {
     }
   } catch (e) {
     console.error('Vote rate limit check failed:', e);
+    return c.json({ error: 'Service temporarily unavailable. Try again.' }, 503);
   }
 
   await next();

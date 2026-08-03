@@ -72,7 +72,7 @@ export class VoteService {
     try {
       const result = await this.api.vote(postId, value);
       this.updatePost(postId, {
-        upvotes: result.upvotes,
+        upvotes: Math.max(0, result.upvotes),
         user_vote: result.user_vote
       });
     } catch (e: any) {

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { sign, verify } from 'hono/jwt';
 import { getAuthUser, jwtVerify, requireAuth, requireUserAccount, requireUserVote } from './middleware/auth';
 import { strictRateLimit, standardRateLimit, voteRateLimit } from './middleware/rate-limit';
@@ -441,7 +442,9 @@ app.get('/api/posts', async (c) => {
     }
   }
 
-  c.header('Cache-Control', 'public, max-age=30, s-maxage=60');
+  // No-store: the payload is per-user (user_vote), so a cached anonymous
+  // response would hide a logged-in user's votes until they vote again.
+  c.header('Cache-Control', 'no-store');
 
   return c.json({ posts, nextCursor });
 });
@@ -470,7 +473,7 @@ app.get('/api/posts/:id', async (c) => {
   ).bind(id).all<any>();
   (post as any).replies = replies;
 
-  c.header('Cache-Control', 'public, max-age=30');
+  c.header('Cache-Control', 'no-store');
   return c.json({ post });
 });
 

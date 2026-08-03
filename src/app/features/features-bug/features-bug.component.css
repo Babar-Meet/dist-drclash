@@ -357,6 +357,25 @@
   text-align: center;
 }
 
+.clear-vote-btn {
+  background: transparent;
+  border: none;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #A3A3A3;
+  cursor: pointer;
+  margin-top: 4px;
+  padding: 4px;
+  transition: color 0.15s;
+}
+
+.clear-vote-btn:hover {
+  color: #525252;
+}
+
 /* ── Card Body ── */
 
 .card-body {
@@ -580,6 +599,10 @@
   }
   .vote-count {
     font-size: 15px;
+  }
+  .clear-vote-btn {
+    font-size: 8px;
+    margin-top: 2px;
   }
   .card-title {
     font-size: 18px;

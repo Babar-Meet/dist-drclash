@@ -63,7 +63,7 @@ test.describe('Basic vote operations', () => {
   }
 
   for (const action of voteActions) {
-    test(`toggle off ${action.label} returns count to original`, async ({ page }) => {
+    test(`clicking ${action.label} again keeps the vote (no-op)`, async ({ page }) => {
       const postId = 100;
       await clickVote(page, postId, action.dir);
       await page.waitForTimeout(400);
@@ -71,9 +71,37 @@ test.describe('Basic vote operations', () => {
       await clickVote(page, postId, action.dir);
       await page.waitForTimeout(400);
       const afterSecond = await getVoteDisplay(page, postId);
-      expect(afterSecond.userVote).toBeNull();
+      expect(afterSecond.userVote).toBe(action.value);
+      expect(afterSecond.count).toBe(afterFirst.count);
     });
   }
+
+  for (const action of voteActions) {
+    test(`clear button removes an existing ${action.label}`, async ({ page }) => {
+      const postId = 100;
+      const before = await getVoteDisplay(page, postId);
+      await clickVote(page, postId, action.dir);
+      await page.waitForTimeout(400);
+      const voted = await getVoteDisplay(page, postId);
+      expect(voted.userVote).toBe(action.value);
+
+      const card = cardByPostId(page, postId);
+      const clearBtn = card.locator('.clear-vote-btn');
+      await expect(clearBtn).toBeVisible();
+      await clearBtn.click();
+      await page.waitForTimeout(400);
+
+      const after = await getVoteDisplay(page, postId);
+      expect(after.userVote).toBeNull();
+      expect(after.count).toBe(before.count);
+    });
+  }
+
+  test('clear button is hidden when no vote exists', async ({ page }) => {
+    const postId = 101;
+    const clearBtn = cardByPostId(page, postId).locator('.clear-vote-btn');
+    await expect(clearBtn).toHaveCount(0);
+  });
 
   test('upvote then downvote switches correctly', async ({ page }) => {
     const postId = 100;
@@ -122,15 +150,17 @@ test.describe('Optimistic UI updates', () => {
     expect(after.count).toBe(before.count + 1);
   });
 
-  test('optimistic state preserved on API failure', async ({ page }) => {
+  test('vote reverts and shows an error when the API fails', async ({ page }) => {
     mock.setFailNextVote(true);
     const postId = 100;
     const before = await getVoteDisplay(page, postId);
     await clickVote(page, postId, 'up');
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(500);
     const after = await getVoteDisplay(page, postId);
-    expect(after.count).toBe(before.count + 1);
-    expect(after.userVote).toBe(1);
+    expect(after.count).toBe(before.count);
+    expect(after.userVote).toBeNull();
+    const errorEl = cardByPostId(page, postId).locator('.vote-error');
+    await expect(errorEl).toBeVisible();
   });
 
   test('error message shown below vote buttons on failure', async ({ page }) => {
@@ -144,24 +174,24 @@ test.describe('Optimistic UI updates', () => {
   });
 });
 
-// ─── 3. DEBOUNCE AND COALESCING ───
+// ─── 3. REPEATED AND RAPID CLICKS ───
 
-test.describe('Debounce and coalescing', () => {
+test.describe('Repeated and rapid clicks', () => {
   const rapidPatterns = [
-    { clicks: ['up', 'up'], label: 'up-up', expected: 0 },
-    { clicks: ['down', 'down'], label: 'down-down', expected: 0 },
+    { clicks: ['up', 'up'], label: 'up-up', expected: 1 },
+    { clicks: ['down', 'down'], label: 'down-down', expected: -1 },
     { clicks: ['up', 'down'], label: 'up-down', expected: -1 },
     { clicks: ['down', 'up'], label: 'down-up', expected: 1 },
     { clicks: ['up', 'down', 'up'], label: 'up-down-up', expected: 1 },
     { clicks: ['down', 'up', 'down'], label: 'down-up-down', expected: -1 },
     { clicks: ['up', 'up', 'down'], label: 'up-up-down', expected: -1 },
     { clicks: ['down', 'down', 'up'], label: 'down-down-up', expected: 1 },
-    { clicks: ['up', 'down', 'down'], label: 'up-down-down', expected: 0 },
-    { clicks: ['down', 'up', 'up'], label: 'down-up-up', expected: 0 },
+    { clicks: ['up', 'down', 'down'], label: 'up-down-down', expected: -1 },
+    { clicks: ['down', 'up', 'up'], label: 'down-up-up', expected: 1 },
   ];
 
   for (const pattern of rapidPatterns) {
-    test(`rapid clicks "${pattern.label}" coalesces to final state ${pattern.expected}`, async ({ page }) => {
+    test(`rapid clicks "${pattern.label}" settle to final state ${pattern.expected}`, async ({ page }) => {
       const postId = 102;
       const before = await getVoteDisplay(page, postId);
       for (const dir of pattern.clicks) {
@@ -175,13 +205,13 @@ test.describe('Debounce and coalescing', () => {
     });
   }
 
-  test('10 rapid upvotes in 200ms = 1 API call', async ({ page }) => {
+  test('repeated upvotes after the first are client no-ops (1 API call)', async ({ page }) => {
     const postId = 103;
     for (let i = 0; i < 10; i++) {
       await clickVote(page, postId, 'up');
     }
     await page.waitForTimeout(600);
-    expect(mock['voteCallCount']).toBeLessThanOrEqual(2);
+    expect(mock['voteCallCount']).toBe(1);
   });
 });
 
@@ -297,18 +327,21 @@ test.describe('Rapid toggle + navigation robustness', () => {
     expect(state.userVote).toBe(-1);
   });
 
-  test('failed vote is retried with backoff and converges after recovery', async ({ page }) => {
+  test('failed vote reverts and is not retried', async ({ page }) => {
     const postId = 109;
     const before = await getVoteDisplay(page, postId);
     mock.setFailNextVote(true);
     await clickVote(page, postId, 'up');
-    await page.waitForTimeout(400);
-    expect((await getVoteDisplay(page, postId)).userVote).toBe(1);
+    await page.waitForTimeout(500);
 
-    await page.waitForTimeout(3000);
     const after = await getVoteDisplay(page, postId);
-    expect(after.userVote).toBe(1);
-    expect(after.count).toBe(before.count + 1);
+    expect(after.userVote).toBeNull();
+    expect(after.count).toBe(before.count);
+
+    const callsAfterFailure = mock['voteCallCount'];
+    await page.waitForTimeout(3000);
+    expect(mock['voteCallCount']).toBe(callsAfterFailure);
+    expect((await getVoteDisplay(page, postId)).userVote).toBeNull();
   });
 });
 
@@ -713,9 +746,11 @@ test.describe('All 27 vote sequence patterns', () => {
 
           for (const a of [a1, a2, a3]) {
             if (a === 0) {
-              await clickVote(page, postId, 'up');
-              await page.waitForTimeout(50);
-              await clickVote(page, postId, 'up');
+              const card = cardByPostId(page, postId);
+              const clearBtn = card.locator('.clear-vote-btn');
+              if ((await clearBtn.count()) > 0) {
+                await clearBtn.click();
+              }
               await page.waitForTimeout(50);
             } else {
               await clickVote(page, postId, a === 1 ? 'up' : 'down');
@@ -783,52 +818,3 @@ test.describe('Massive state space — all combinations', () => {
   }
 });
 
-// --- 15. RACE CONDITIONS ---
-
-test.describe('Race conditions', () => {
-  test('stale list fetch does not drop a just-confirmed vote', async ({ page }) => {
-    const postId = 160;
-    // ensure post exists
-    const post = mock.getPost(postId);
-    if (!post) {
-      mock.posts.set(postId, {
-        id: postId, user_id: 1, type: 'feature', status: 'current',
-        title: `Post 60`, content: 'Race condition test', upvotes: 10, username: 'tester', user_vote: null,
-        created_at: new Date().toISOString()
-      });
-    }
-
-    await page.reload();
-    await page.waitForSelector('.card', { timeout: 5000 });
-    
-    // Opt-in the stale posts delay for the next fetch.
-    // This will snapshot the mock's post list immediately (with user_vote=null, upvotes=10),
-    // wait 500ms, and THEN return that stale snapshot, correctly simulating a race condition.
-    mock.setStalePosts(true);
-
-    // Trigger a list fetch by switching filter
-    await page.locator('.filter-chip', { hasText: 'Features' }).click();
-    
-    // Wait slightly so the getPosts request starts, but hasn't returned
-    await page.waitForTimeout(50);
-    
-    // Now vote. The vote POST is NOT delayed and will confirm quickly.
-    await clickVote(page, postId, 'up');
-    
-    // Wait for the vote to confirm locally (debounce 300 + small network time)
-    await page.waitForTimeout(400);
-    
-    // Verify it applied optimistically/confirmed
-    const during = await getVoteDisplay(page, postId);
-    expect(during.userVote).toBe(1);
-    
-    // Wait for the 500ms delayed, genuinely stale getPosts response to arrive
-    await page.waitForTimeout(400); 
-    
-    // The list data was genuinely stale (user_vote=null, upvotes=10).
-    // Our fix should reject it and keep the vote.
-    const after = await getVoteDisplay(page, postId);
-    expect(after.userVote).toBe(1);
-    expect(after.count).toBe(during.count);
-  });
-});

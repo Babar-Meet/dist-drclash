@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { signal, effect } from '@angular/core';
+import { signal } from '@angular/core';
 import { VoteService } from './vote.service';
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
@@ -41,202 +41,124 @@ describe('VoteService', () => {
   }
 
   beforeEach(() => {
-    localStorage.clear();
     api = { vote: vi.fn() };
-    vi.useFakeTimers();
+    api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     TestBed.resetTestingModule();
   });
 
-  it('applies optimistic upvote immediately', () => {
+  it('optimistically applies an upvote immediately', async () => {
+    api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
     const service = configure();
     service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
+    
+    const votePromise = service.applyVote(1, 1);
+    
+    // UI immediately updates
     expect(service.posts()[0].upvotes).toBe(11);
     expect(service.posts()[0].user_vote).toBe(1);
+    
+    await votePromise;
+    expect(api.vote).toHaveBeenCalledWith(1, 1);
   });
 
-  it('applies optimistic downvote immediately', () => {
-    const service = configure();
-    service.setServerPosts([makePost(1)]);
-    service.applyVote(1, -1);
-    expect(service.posts()[0].upvotes).toBe(9);
-    expect(service.posts()[0].user_vote).toBe(-1);
-  });
-
-  it('switching up to down applies a delta of -2', () => {
-    const service = configure();
-    service.setServerPosts([makePost(1, { upvotes: 11, user_vote: 1 })]);
-    service.applyVote(1, -1);
-    expect(service.posts()[0].upvotes).toBe(9);
-    expect(service.posts()[0].user_vote).toBe(-1);
-  });
-
-  it('switching down to up applies a delta of +2', () => {
-    const service = configure();
-    service.setServerPosts([makePost(1, { upvotes: 9, user_vote: -1 })]);
-    service.applyVote(1, 1);
-    expect(service.posts()[0].upvotes).toBe(11);
-    expect(service.posts()[0].user_vote).toBe(1);
-  });
-
-  it('clicking the same value sends an unvote', () => {
-    const service = configure();
-    service.setServerPosts([makePost(1, { upvotes: 11, user_vote: 1 })]);
-    service.applyVote(1, 1);
-    expect(service.posts()[0].upvotes).toBe(10);
-    expect(service.posts()[0].user_vote).toBeNull();
-  });
-
-  it('does nothing when not authenticated', () => {
-    const service = configure(makeAuth(null));
-    service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    expect(service.posts()[0].upvotes).toBe(10);
-    expect(api.vote).not.toHaveBeenCalled();
-  });
-
-  it('coalesces rapid clicks into one request with the final value', async () => {
+  it('optimistically applies a downvote immediately', async () => {
     api.vote.mockResolvedValue({ upvotes: 9, user_vote: -1 });
     const service = configure();
     service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    service.applyVote(1, -1);
-    await vi.advanceTimersByTimeAsync(300);
-    expect(api.vote).toHaveBeenCalledTimes(1);
-    expect(api.vote).toHaveBeenCalledWith(1, -1);
+    
+    const votePromise = service.applyVote(1, -1);
+    
+    expect(service.posts()[0].upvotes).toBe(9);
+    expect(service.posts()[0].user_vote).toBe(-1);
+    
+    await votePromise;
   });
 
-  it('does not send concurrent requests for the same post', async () => {
-    let resolveVote: (v: any) => void = () => {};
-    api.vote.mockImplementation(
-      () => new Promise(res => { resolveVote = res; })
-    );
+  it('switching up to down applies a delta of -2', async () => {
+    api.vote.mockResolvedValue({ upvotes: 9, user_vote: -1 });
     const service = configure();
-    service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    await vi.advanceTimersByTimeAsync(300);
-    expect(api.vote).toHaveBeenCalledTimes(1);
-
-    service.applyVote(1, -1);
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(api.vote).toHaveBeenCalledTimes(1);
-
-    resolveVote({ upvotes: 11, user_vote: 1 });
-    await vi.advanceTimersByTimeAsync(0);
-    await vi.advanceTimersByTimeAsync(300);
-    expect(api.vote).toHaveBeenCalledTimes(2);
-    expect(api.vote).toHaveBeenLastCalledWith(1, -1);
+    service.setServerPosts([makePost(1, { upvotes: 11, user_vote: 1 })]);
+    
+    const votePromise = service.applyVote(1, -1);
+    
+    expect(service.posts()[0].upvotes).toBe(9);
+    expect(service.posts()[0].user_vote).toBe(-1);
+    
+    await votePromise;
   });
 
-  it('writes the intent to the localStorage outbox before the network call', () => {
-    const service = configure();
-    service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    const stored = localStorage.getItem('pendingVotes');
-    expect(stored).not.toBeNull();
-    expect(JSON.parse(stored!)).toEqual({ 1: 1 });
-  });
-
-  it('removes the outbox entry after a successful flush', async () => {
+  it('switching down to up applies a delta of +2', async () => {
     api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
     const service = configure();
-    service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    await vi.advanceTimersByTimeAsync(300);
-    expect(localStorage.getItem('pendingVotes')).toBeNull();
+    service.setServerPosts([makePost(1, { upvotes: 9, user_vote: -1 })]);
+    
+    const votePromise = service.applyVote(1, 1);
+    
     expect(service.posts()[0].upvotes).toBe(11);
     expect(service.posts()[0].user_vote).toBe(1);
+    
+    await votePromise;
   });
 
-  it('hydrates pending intents from the outbox and flushes them', async () => {
-    localStorage.setItem('pendingVotes', JSON.stringify({ 1: 1, 5: -1 }));
-    api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
+  it('clicking the same value does nothing (no-op)', async () => {
     const service = configure();
-    await vi.advanceTimersByTimeAsync(300);
-    expect(api.vote).toHaveBeenCalledWith(1, 1);
-    expect(api.vote).toHaveBeenCalledWith(5, -1);
+    service.setServerPosts([makePost(1, { upvotes: 11, user_vote: 1 })]);
+    
+    await service.applyVote(1, 1);
+    
+    expect(service.posts()[0].upvotes).toBe(11);
+    expect(service.posts()[0].user_vote).toBe(1);
+    expect(api.vote).not.toHaveBeenCalled();
   });
 
-  it('re-applies a pending intent on top of a fresh server list without double counting', async () => {
-    api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
+  it('clearing a vote sends 0 and removes the vote', async () => {
+    api.vote.mockResolvedValue({ upvotes: 10, user_vote: null });
     const service = configure();
-    service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    expect(service.posts()[0].upvotes).toBe(11);
-
-    service.setServerPosts([makePost(1)]);
-    expect(service.posts()[0].upvotes).toBe(11);
-
-    await vi.advanceTimersByTimeAsync(300);
-    expect(service.posts()[0].upvotes).toBe(11);
-    expect(api.vote).toHaveBeenCalledTimes(1);
+    service.setServerPosts([makePost(1, { upvotes: 11, user_vote: 1 })]);
+    
+    const votePromise = service.applyVote(1, 0);
+    
+    expect(service.posts()[0].upvotes).toBe(10);
+    expect(service.posts()[0].user_vote).toBeNull();
+    
+    await votePromise;
+    expect(api.vote).toHaveBeenCalledWith(1, 0);
   });
 
-  it('keeps the intent on network failure and retries with backoff', async () => {
-    api.vote.mockRejectedValueOnce(new Error('Network error'));
-    api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
+  it('adopts server truth upon successful request', async () => {
+    api.vote.mockResolvedValue({ upvotes: 99, user_vote: 1 });
     const service = configure();
     service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    await vi.advanceTimersByTimeAsync(300);
+    
+    await service.applyVote(1, 1);
+    
+    expect(service.posts()[0].upvotes).toBe(99);
+  });
 
-    expect(api.vote).toHaveBeenCalledTimes(1);
+  it('reverts the UI and sets an error on network failure', async () => {
+    api.vote.mockRejectedValue(new Error('Network error'));
+    const service = configure();
+    service.setServerPosts([makePost(1)]);
+    
+    await service.applyVote(1, 1);
+    
+    // UI reverted to old state
+    expect(service.posts()[0].upvotes).toBe(10);
+    expect(service.posts()[0].user_vote).toBeNull();
     expect(service.voteErrors().get(1)).toBe('Network error');
-    expect(JSON.parse(localStorage.getItem('pendingVotes')!)).toEqual({ 1: 1 });
-    expect(service.posts()[0].upvotes).toBe(11);
-
-    await vi.advanceTimersByTimeAsync(3000);
-    expect(api.vote).toHaveBeenCalledTimes(2);
-    expect(service.posts()[0].upvotes).toBe(11);
-    expect(localStorage.getItem('pendingVotes')).toBeNull();
-    expect(service.voteErrors().has(1)).toBe(false);
   });
 
-  it('drops the intent on a 400 validation error without retrying', async () => {
-    const err: any = new Error('Value must be -1, 0, or 1.');
-    err.status = 400;
-    api.vote.mockRejectedValueOnce(err);
-    const service = configure();
+  it('does nothing when not authenticated', async () => {
+    const service = configure(makeAuth(null));
     service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    await vi.advanceTimersByTimeAsync(300);
-    expect(api.vote).toHaveBeenCalledTimes(1);
-    expect(service.voteErrors().get(1)).toBe('Value must be -1, 0, or 1.');
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(api.vote).toHaveBeenCalledTimes(1);
-    expect(localStorage.getItem('pendingVotes')).toBeNull();
-  });
-
-  it('drops the intent and requests a reload on a 404', async () => {
-    const err: any = new Error('Post not found.');
-    err.status = 404;
-    api.vote.mockRejectedValueOnce(err);
-    const service = configure();
-    service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    await vi.advanceTimersByTimeAsync(300);
-    expect(service.reloadRequested()).toBe(1);
-    expect(localStorage.getItem('pendingVotes')).toBeNull();
-  });
-
-  it('honors the Retry-After header on a 429', async () => {
-    const err: any = new Error('Too many votes.');
-    err.status = 429;
-    err.retryAfter = '10';
-    api.vote.mockRejectedValueOnce(err);
-    api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
-    const service = configure();
-    service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    await vi.advanceTimersByTimeAsync(300);
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(api.vote).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(6000);
-    expect(api.vote).toHaveBeenCalledTimes(2);
+    
+    await service.applyVote(1, 1);
+    
+    expect(service.posts()[0].upvotes).toBe(10);
+    expect(api.vote).not.toHaveBeenCalled();
   });
 
   it('clears all vote state when the user logs out', () => {
@@ -244,19 +166,16 @@ describe('VoteService', () => {
     const service = configure(auth);
     TestBed.flushEffects();
 
-    service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
+    service.setServerPosts([makePost(1, { user_vote: 1 })]);
     expect(service.posts()[0].user_vote).toBe(1);
 
     auth.user.set(null);
     TestBed.flushEffects();
 
     expect(service.posts()[0].user_vote).toBeNull();
-    expect(localStorage.getItem('pendingVotes')).toBeNull();
-    expect(service.voteInFlight().size).toBe(0);
   });
 
-  it('triggers reload and clears confirmedVotes when auth transitions from null to User', () => {
+  it('triggers reload when auth transitions from null to User', () => {
     const auth = makeAuth(null);
     const service = configure(auth);
     TestBed.flushEffects();
@@ -268,123 +187,4 @@ describe('VoteService', () => {
 
     expect(service.reloadRequested()).not.toBeNull();
   });
-
-  it('falls back to in-memory storage when localStorage throws', () => {
-    const original = localStorage.setItem;
-    localStorage.setItem = (() => {
-      throw new Error('quota exceeded');
-    }) as any;
-    try {
-      const service = configure();
-      service.setServerPosts([makePost(1)]);
-      service.applyVote(1, 1);
-      expect(service.posts()[0].upvotes).toBe(11);
-    } finally {
-      localStorage.setItem = original;
-    }
-  });
-
-  // --- NEW TESTS ---
-
-  it('atomically updates posts without transient double-count on flush success', async () => {
-    api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
-    const service = configure();
-    service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    
-    let callCount = 0;
-    // We observe the computed posts to catch any transient states
-    TestBed.runInInjectionContext(() => {
-      effect(() => {
-        service.posts();
-        callCount++;
-      });
-    });
-    TestBed.flushEffects();
-    
-    const beforeCount = callCount;
-    await vi.advanceTimersByTimeAsync(300); // Trigger flush
-    TestBed.flushEffects();
-    
-    // The flush success should trigger exactly one computed update
-    expect(callCount).toBe(beforeCount + 1);
-    expect(service.posts()[0].upvotes).toBe(11);
-  });
-
-  it('rejects stale list data if loadPosts started before vote was confirmed', async () => {
-    api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
-    const service = configure();
-    
-    const reqTimeOld = Date.now();
-    await vi.advanceTimersByTimeAsync(10);
-    
-    service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    await vi.advanceTimersByTimeAsync(300); // Flush vote, confirmedAt is now Date.now()
-    
-    // Simulate list response arriving late with stale data
-    service.setServerPosts([makePost(1, { upvotes: 10, user_vote: null })], reqTimeOld);
-    
-    // The confirmed vote state should win
-    expect(service.posts()[0].upvotes).toBe(11);
-    expect(service.posts()[0].user_vote).toBe(1);
-  });
-
-  it('accepts fresh list data if loadPosts started after vote was confirmed', async () => {
-    api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
-    const service = configure();
-    
-    service.setServerPosts([makePost(1)]);
-    service.applyVote(1, 1);
-    await vi.advanceTimersByTimeAsync(300); // Flush vote, confirmedAt is Date.now()
-    
-    await vi.advanceTimersByTimeAsync(10);
-    const reqTimeNew = Date.now();
-    
-    // Simulate someone else voted on the same post making it 12, and we fetch
-    service.setServerPosts([makePost(1, { upvotes: 12, user_vote: 1 })], reqTimeNew);
-    
-    // The fresh list data should win and evict the confirmed state
-    expect(service.posts()[0].upvotes).toBe(12);
-    expect(service.posts()[0].user_vote).toBe(1);
-  });
-
-  it('properly handles unvote (intent 0)', async () => {
-    api.vote.mockResolvedValue({ upvotes: 10, user_vote: null });
-    const service = configure();
-    service.setServerPosts([makePost(1, { upvotes: 11, user_vote: 1 })]);
-    
-    service.applyVote(1, 1); // unvote
-    expect(service.posts()[0].upvotes).toBe(10);
-    expect(service.posts()[0].user_vote).toBeNull();
-    
-    await vi.advanceTimersByTimeAsync(300); // Flush
-    expect(api.vote).toHaveBeenCalledWith(1, 0);
-    expect(service.posts()[0].upvotes).toBe(10);
-  });
-
-  it('hydrates pending intents from legacy pendingVotes format correctly', () => {
-    localStorage.setItem('pendingVotes', JSON.stringify({ 1: 1, 5: -1 }));
-    const service = configure(); // hydration happens in constructor
-    service.setServerPosts([
-      makePost(1, { upvotes: 10, user_vote: null }),
-      makePost(5, { upvotes: 10, user_vote: null })
-    ]);
-    
-    expect(service.posts().find(p => p.id === 1)!.user_vote).toBe(1);
-    expect(service.posts().find(p => p.id === 5)!.user_vote).toBe(-1);
-  });
-
-  it('syncs outbox across tabs via storage event', () => {
-    const service = configure();
-    service.setServerPosts([makePost(1)]);
-    
-    window.dispatchEvent(new StorageEvent('storage', {
-      key: 'pendingVotes',
-      newValue: JSON.stringify({ 1: 1 })
-    }));
-    
-    expect(service.posts()[0].user_vote).toBe(1);
-  });
-
 });

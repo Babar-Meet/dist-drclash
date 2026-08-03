@@ -89,6 +89,9 @@
             @if (err) {
               <span class="vote-error">{{ err }}</span>
             }
+            @if (auth.user() && post.user_vote !== null) {
+              <button class="clear-vote-btn" (click)="vote(post.id, 0)">Clear</button>
+            }
           </div>
         </div>
         <div class="card-body">

@@ -196,7 +196,7 @@ test.describe('Persistence across navigation', () => {
 
     await page.locator('.filter-chip', { hasText: 'Features' }).click();
     await page.waitForTimeout(300);
-    await page.locator('.filter-chip', { hasText: 'All' }).click();
+    await page.locator('.filter-chip', { hasText: 'Features' }).click();
     await page.waitForSelector('.card', { timeout: 5000 });
     await page.waitForTimeout(300);
 
@@ -273,7 +273,7 @@ test.describe('Rapid toggle + navigation robustness', () => {
     await clickVote(page, postId, 'down');
     await page.locator('.filter-chip', { hasText: 'Bugs' }).click();
     await page.waitForTimeout(300);
-    await page.locator('.filter-chip', { hasText: 'All' }).click();
+    await page.locator('.filter-chip', { hasText: 'Features' }).click();
     await page.waitForSelector('.card', { timeout: 5000 });
     await page.waitForTimeout(600);
 
@@ -289,7 +289,7 @@ test.describe('Rapid toggle + navigation robustness', () => {
 
     await page.locator('.filter-chip', { hasText: 'Features' }).click();
     await page.waitForTimeout(700);
-    await page.locator('.filter-chip', { hasText: 'All' }).click();
+    await page.locator('.filter-chip', { hasText: 'Features' }).click();
     await page.waitForSelector('.card', { timeout: 5000 });
     await page.waitForTimeout(400);
 
@@ -459,7 +459,7 @@ test.describe('Edge cases', () => {
 // ─── 7. FILTER INTERACTIONS + VOTES ───
 
 test.describe('Filter interactions with votes', () => {
-  const filters = ['All', 'Features', 'Bugs', 'Done'];
+  const filters = ['Features', 'Bugs', 'Done'];
 
   for (const filter of filters) {
     test(`vote works correctly in "${filter}" filter view`, async ({ page }) => {
@@ -493,7 +493,7 @@ test.describe('Filter interactions with votes', () => {
 
     await page.locator('.filter-chip', { hasText: 'Bugs' }).click();
     await page.waitForTimeout(300);
-    await page.locator('.filter-chip', { hasText: 'All' }).click();
+    await page.locator('.filter-chip', { hasText: 'Features' }).click();
     await page.waitForSelector('.card', { timeout: 5000 });
     await page.waitForTimeout(300);
 
@@ -591,9 +591,9 @@ test.describe('UI consistency', () => {
 
   test('filter tabs are all present', async ({ page }) => {
     const filters = page.locator('.filter-chip');
-    await expect(filters).toHaveCount(4);
+    await expect(filters).toHaveCount(3);
     const texts = await filters.allTextContents();
-    expect(texts.map(t => t.trim())).toEqual(['All', 'Features', 'Bugs', 'Done']);
+    expect(texts.map(t => t.trim())).toEqual(['Features', 'Bugs', 'Done']);
   });
 });
 

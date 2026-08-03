@@ -251,7 +251,7 @@ describe('VoteService', () => {
     auth.user.set(null);
     TestBed.flushEffects();
 
-    expect(service.posts().length).toBe(0);
+    expect(service.posts()[0].user_vote).toBeNull();
     expect(localStorage.getItem('pendingVotes')).toBeNull();
     expect(service.voteInFlight().size).toBe(0);
   });

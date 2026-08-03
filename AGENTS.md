@@ -45,6 +45,8 @@ See `DESIGN.md` for full spec
 ## Testing
 
 ### E2E (Playwright, 319 tests)
+- **NEVER RUN E2E TESTS YOURSELF**. They take too long. The user will run them. If you make changes that require E2E verification, give the user the specific `npm run test:e2e` command to run.
+- **ONLY run specific unit tests** to verify the exact files you edit.
 All API calls mocked via `page.route()`. Key patterns:
 - **Catch-all route must be registered FIRST** with `route.fallback()`, THEN specific handlers (`**/api/posts*`, `**/api/vote`, `**/api/auth/me`) with `route.fulfill()`
 - Auth mock: `page.evaluate(() => sessionStorage.setItem('token', 'fake-jwt-token-for-testing'))` then `page.reload()`

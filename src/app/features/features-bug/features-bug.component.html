@@ -14,7 +14,7 @@
   </div>
 
   <div class="filter-tabs">
-    @for (tab of [ { key: 'all', label: 'All' }, { key: 'feature', label: 'Features' }, { key: 'bug', label: 'Bugs' }, { key: 'done', label: 'Done' } ]; track tab.key) {
+    @for (tab of [ { key: 'feature', label: 'Features' }, { key: 'bug', label: 'Bugs' }, { key: 'done', label: 'Done' } ]; track tab.key) {
       <button
         class="filter-chip"
         [class.active]="activeFilter() === tab.key"

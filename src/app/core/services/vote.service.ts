@@ -50,8 +50,9 @@ export class VoteService {
   setServerPosts(newPosts: ApiPost[], reqTime: number = Date.now()) {
     this.postData.update(d => {
       const nextConfirmed = new Map(d.confirmedVotes);
+      const newPostIds = new Set(newPosts.map(p => p.id));
       for (const [id, cv] of nextConfirmed.entries()) {
-        if (reqTime > cv.confirmedAt) {
+        if (newPostIds.has(id) && reqTime > cv.confirmedAt) {
           nextConfirmed.delete(id);
         }
       }
@@ -363,8 +364,11 @@ export class VoteService {
         return;
       }
       if (id !== lastUserId) {
+        const wasNull = lastUserId === null;
         lastUserId = id;
-        this.clearAll();
+        if (!wasNull) {
+          this.clearAll();
+        }
       }
     });
   }
@@ -376,7 +380,12 @@ export class VoteService {
     this.retryTimers.clear();
     this.retryAttempts.clear();
     this.inFlight.clear();
-    this.postData.update(d => ({ ...d, intents: new Map(), confirmedVotes: new Map(), posts: [] }));
+    this.postData.update(d => ({ 
+      ...d, 
+      intents: new Map(), 
+      confirmedVotes: new Map(), 
+      posts: d.posts.map(p => ({ ...p, user_vote: null })) 
+    }));
     this.voteInFlight.set(new Set());
     this.voteErrors.set(new Map());
     this.storageRemove(OUTBOX_KEY);

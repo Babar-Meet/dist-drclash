@@ -7,7 +7,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { VoteService } from '../../core/services/vote.service';
 import { DatePipe } from '@angular/common';
 
-type FilterTab = 'all' | 'feature' | 'bug' | 'done';
+type FilterTab = 'feature' | 'bug' | 'done';
 
 @Component({
   selector: 'app-features-bug',
@@ -27,7 +27,7 @@ export class FeaturesBugComponent implements OnInit {
 
   loading = signal(true);
   loadError = signal<string | null>(null);
-  activeFilter = signal<FilterTab>('all');
+  activeFilter = signal<FilterTab>('feature');
   showForm = signal(false);
   formType: 'feature' | 'bug' = 'feature';
   formTitle = '';
@@ -54,7 +54,7 @@ export class FeaturesBugComponent implements OnInit {
 
   async loadPosts(cursor?: number) {
     if (!cursor) this.loading.set(true);
-    const type = this.activeFilter() === 'all' ? undefined : this.activeFilter() === 'done' ? undefined : this.activeFilter();
+    const type = this.activeFilter() === 'done' ? undefined : this.activeFilter();
     const status = this.activeFilter() === 'done' ? 'done' : 'current';
 
     try {

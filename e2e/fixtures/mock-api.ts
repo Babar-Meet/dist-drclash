@@ -6,6 +6,7 @@ export class MockApiHandler {
     this.failNextVote = false;
     this.slowNextVote = false;
     this.slowPosts = false;
+    this.stalePosts = false;
     this.voteCallCount = 0;
     this.seedPosts();
   }
@@ -31,6 +32,7 @@ export class MockApiHandler {
   setFailNextVote(fail) { this.failNextVote = fail; }
   setSlowNextVote(slow) { this.slowNextVote = slow; }
   setSlowPosts(slow) { this.slowPosts = slow; }
+  setStalePosts(stale) { this.stalePosts = stale; }
 
   reset() {
     this.posts.clear();
@@ -39,6 +41,7 @@ export class MockApiHandler {
     this.failNextVote = false;
     this.slowNextVote = false;
     this.slowPosts = false;
+    this.stalePosts = false;
     this.voteCallCount = 0;
     this.seedPosts();
   }
@@ -79,16 +82,22 @@ export class MockApiHandler {
           body: JSON.stringify({ post }),
         });
       }
-      if (this.slowPosts) {
-        this.slowPosts = false;
-        await new Promise(r => setTimeout(r, 500));
-      }
       const url = new URL(route.request().url());
       const type = url.searchParams.get('type');
       const status = url.searchParams.get('status');
       let filtered = this.getAllPosts();
       if (type) filtered = filtered.filter(p => p.type === type);
       if (status) filtered = filtered.filter(p => p.status === status);
+
+      if (this.stalePosts) {
+        this.stalePosts = false;
+        const snapshot = JSON.parse(JSON.stringify(filtered));
+        await new Promise(r => setTimeout(r, 500));
+        filtered = snapshot;
+      } else if (this.slowPosts) {
+        this.slowPosts = false;
+        await new Promise(r => setTimeout(r, 500));
+      }
       route.fulfill({
         status: 200,
         contentType: 'application/json',

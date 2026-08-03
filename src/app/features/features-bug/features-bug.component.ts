@@ -58,11 +58,11 @@ export class FeaturesBugComponent implements OnInit {
     const status = this.activeFilter() === 'done' ? 'done' : 'current';
 
     try {
-      const { posts, nextCursor } = await this.api.getPosts(type, status, cursor);
+      const { posts, nextCursor, reqTime } = await this.api.getPosts(type, status, cursor);
       if (cursor) {
-        this.voteService.appendServerPosts(posts);
+        this.voteService.appendServerPosts(posts, reqTime);
       } else {
-        this.voteService.setServerPosts(posts);
+        this.voteService.setServerPosts(posts, reqTime);
       }
       this.nextCursor = nextCursor;
     } catch {

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { signal, effect } from '@angular/core';
 import { VoteService } from './vote.service';
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
@@ -251,7 +251,7 @@ describe('VoteService', () => {
     auth.user.set(null);
     TestBed.flushEffects();
 
-    expect(service.posts()[0].user_vote).toBeNull();
+    expect(service.posts().length).toBe(0);
     expect(localStorage.getItem('pendingVotes')).toBeNull();
     expect(service.voteInFlight().size).toBe(0);
   });
@@ -270,4 +270,108 @@ describe('VoteService', () => {
       localStorage.setItem = original;
     }
   });
+
+  // --- NEW TESTS ---
+
+  it('atomically updates posts without transient double-count on flush success', async () => {
+    api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
+    const service = configure();
+    service.setServerPosts([makePost(1)]);
+    service.applyVote(1, 1);
+    
+    let callCount = 0;
+    // We observe the computed posts to catch any transient states
+    TestBed.runInInjectionContext(() => {
+      effect(() => {
+        service.posts();
+        callCount++;
+      });
+    });
+    TestBed.flushEffects();
+    
+    const beforeCount = callCount;
+    await vi.advanceTimersByTimeAsync(300); // Trigger flush
+    TestBed.flushEffects();
+    
+    // The flush success should trigger exactly one computed update
+    expect(callCount).toBe(beforeCount + 1);
+    expect(service.posts()[0].upvotes).toBe(11);
+  });
+
+  it('rejects stale list data if loadPosts started before vote was confirmed', async () => {
+    api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
+    const service = configure();
+    
+    const reqTimeOld = Date.now();
+    await vi.advanceTimersByTimeAsync(10);
+    
+    service.setServerPosts([makePost(1)]);
+    service.applyVote(1, 1);
+    await vi.advanceTimersByTimeAsync(300); // Flush vote, confirmedAt is now Date.now()
+    
+    // Simulate list response arriving late with stale data
+    service.setServerPosts([makePost(1, { upvotes: 10, user_vote: null })], reqTimeOld);
+    
+    // The confirmed vote state should win
+    expect(service.posts()[0].upvotes).toBe(11);
+    expect(service.posts()[0].user_vote).toBe(1);
+  });
+
+  it('accepts fresh list data if loadPosts started after vote was confirmed', async () => {
+    api.vote.mockResolvedValue({ upvotes: 11, user_vote: 1 });
+    const service = configure();
+    
+    service.setServerPosts([makePost(1)]);
+    service.applyVote(1, 1);
+    await vi.advanceTimersByTimeAsync(300); // Flush vote, confirmedAt is Date.now()
+    
+    await vi.advanceTimersByTimeAsync(10);
+    const reqTimeNew = Date.now();
+    
+    // Simulate someone else voted on the same post making it 12, and we fetch
+    service.setServerPosts([makePost(1, { upvotes: 12, user_vote: 1 })], reqTimeNew);
+    
+    // The fresh list data should win and evict the confirmed state
+    expect(service.posts()[0].upvotes).toBe(12);
+    expect(service.posts()[0].user_vote).toBe(1);
+  });
+
+  it('properly handles unvote (intent 0)', async () => {
+    api.vote.mockResolvedValue({ upvotes: 10, user_vote: null });
+    const service = configure();
+    service.setServerPosts([makePost(1, { upvotes: 11, user_vote: 1 })]);
+    
+    service.applyVote(1, 1); // unvote
+    expect(service.posts()[0].upvotes).toBe(10);
+    expect(service.posts()[0].user_vote).toBeNull();
+    
+    await vi.advanceTimersByTimeAsync(300); // Flush
+    expect(api.vote).toHaveBeenCalledWith(1, 0);
+    expect(service.posts()[0].upvotes).toBe(10);
+  });
+
+  it('hydrates pending intents from legacy pendingVotes format correctly', () => {
+    localStorage.setItem('pendingVotes', JSON.stringify({ 1: 1, 5: -1 }));
+    const service = configure(); // hydration happens in constructor
+    service.setServerPosts([
+      makePost(1, { upvotes: 10, user_vote: null }),
+      makePost(5, { upvotes: 10, user_vote: null })
+    ]);
+    
+    expect(service.posts().find(p => p.id === 1)!.user_vote).toBe(1);
+    expect(service.posts().find(p => p.id === 5)!.user_vote).toBe(-1);
+  });
+
+  it('syncs outbox across tabs via storage event', () => {
+    const service = configure();
+    service.setServerPosts([makePost(1)]);
+    
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'pendingVotes',
+      newValue: JSON.stringify({ 1: 1 })
+    }));
+    
+    expect(service.posts()[0].user_vote).toBe(1);
+  });
+
 });

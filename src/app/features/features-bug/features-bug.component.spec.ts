@@ -40,7 +40,7 @@ describe('FeaturesBugComponent', () => {
 
   beforeEach(() => {
     api = new MockApiService();
-    api.getPosts.mockResolvedValue({ posts: [], nextCursor: null });
+    api.getPosts.mockResolvedValue({ posts: [], nextCursor: null, reqTime: 123 });
     voteService = createMockVoteService();
 
     TestBed.configureTestingModule({
@@ -93,15 +93,15 @@ describe('FeaturesBugComponent', () => {
 
   describe('loadPosts', () => {
     it('feeds the server list into VoteService on fresh load', async () => {
-      api.getPosts.mockResolvedValue({ posts: [{ id: 1 }], nextCursor: null });
+      api.getPosts.mockResolvedValue({ posts: [{ id: 1 }], nextCursor: null, reqTime: 123 });
       await component.loadPosts();
-      expect(voteService.setServerPosts).toHaveBeenCalledWith([{ id: 1 }]);
+      expect(voteService.setServerPosts).toHaveBeenCalledWith([{ id: 1 }], 123);
     });
 
     it('appends posts via VoteService on pagination', async () => {
-      api.getPosts.mockResolvedValue({ posts: [{ id: 2 }], nextCursor: null });
+      api.getPosts.mockResolvedValue({ posts: [{ id: 2 }], nextCursor: null, reqTime: 123 });
       await component.loadPosts(5);
-      expect(voteService.appendServerPosts).toHaveBeenCalledWith([{ id: 2 }]);
+      expect(voteService.appendServerPosts).toHaveBeenCalledWith([{ id: 2 }], 123);
     });
 
     it('sets loadError on failure', async () => {

@@ -782,3 +782,53 @@ test.describe('Massive state space — all combinations', () => {
     }
   }
 });
+
+// --- 15. RACE CONDITIONS ---
+
+test.describe('Race conditions', () => {
+  test('stale list fetch does not drop a just-confirmed vote', async ({ page }) => {
+    const postId = 160;
+    // ensure post exists
+    const post = mock.getPost(postId);
+    if (!post) {
+      mock.posts.set(postId, {
+        id: postId, user_id: 1, type: 'feature', status: 'current',
+        title: `Post 60`, content: 'Race condition test', upvotes: 10, username: 'tester', user_vote: null,
+        created_at: new Date().toISOString()
+      });
+    }
+
+    await page.reload();
+    await page.waitForSelector('.card', { timeout: 5000 });
+    
+    // Opt-in the stale posts delay for the next fetch.
+    // This will snapshot the mock's post list immediately (with user_vote=null, upvotes=10),
+    // wait 500ms, and THEN return that stale snapshot, correctly simulating a race condition.
+    mock.setStalePosts(true);
+
+    // Trigger a list fetch by switching filter
+    await page.locator('.filter-chip', { hasText: 'Features' }).click();
+    
+    // Wait slightly so the getPosts request starts, but hasn't returned
+    await page.waitForTimeout(50);
+    
+    // Now vote. The vote POST is NOT delayed and will confirm quickly.
+    await clickVote(page, postId, 'up');
+    
+    // Wait for the vote to confirm locally (debounce 300 + small network time)
+    await page.waitForTimeout(400);
+    
+    // Verify it applied optimistically/confirmed
+    const during = await getVoteDisplay(page, postId);
+    expect(during.userVote).toBe(1);
+    
+    // Wait for the 500ms delayed, genuinely stale getPosts response to arrive
+    await page.waitForTimeout(400); 
+    
+    // The list data was genuinely stale (user_vote=null, upvotes=10).
+    // Our fix should reject it and keep the vote.
+    const after = await getVoteDisplay(page, postId);
+    expect(after.userVote).toBe(1);
+    expect(after.count).toBe(during.count);
+  });
+});

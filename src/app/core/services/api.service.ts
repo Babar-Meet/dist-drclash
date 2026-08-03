@@ -75,12 +75,13 @@ export class ApiService {
 
   // Posts
   getPosts(type?: string, status?: string, cursor?: number) {
+    const reqTime = Date.now();
     const params = new URLSearchParams();
     if (type) params.set('type', type);
     if (status) params.set('status', status);
     if (cursor) params.set('cursor', String(cursor));
     const qs = params.toString();
-    return this.get<{ posts: Post[]; nextCursor: number | null }>(`/api/posts${qs ? '?' + qs : ''}`);
+    return this.get<{ posts: Post[]; nextCursor: number | null }>(`/api/posts${qs ? '?' + qs : ''}`).then(res => ({ ...res, reqTime }));
   }
 
   createPost(type: string, title: string, content: string) {

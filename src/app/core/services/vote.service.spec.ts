@@ -256,6 +256,19 @@ describe('VoteService', () => {
     expect(service.voteInFlight().size).toBe(0);
   });
 
+  it('triggers reload and clears confirmedVotes when auth transitions from null to User', () => {
+    const auth = makeAuth(null);
+    const service = configure(auth);
+    TestBed.flushEffects();
+
+    expect(service.reloadRequested()).toBeNull();
+
+    auth.user.set(TEST_USER);
+    TestBed.flushEffects();
+
+    expect(service.reloadRequested()).not.toBeNull();
+  });
+
   it('falls back to in-memory storage when localStorage throws', () => {
     const original = localStorage.setItem;
     localStorage.setItem = (() => {

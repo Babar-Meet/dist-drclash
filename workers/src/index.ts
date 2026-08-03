@@ -19,7 +19,11 @@ type Bindings = {
 const app = new Hono<{ Bindings: Bindings }>();
 
 app.use('/*', async (c, next) => {
-  const origin = c.env.APP_URL || 'https://drclash.vercel.app';
+  const reqOrigin = c.req.header('Origin');
+  const allowed = ['https://drclash.vercel.app', 'http://localhost:4200', 'http://localhost:8787'];
+  const origin = reqOrigin && (allowed.includes(reqOrigin) || reqOrigin.startsWith('http://localhost:'))
+    ? reqOrigin
+    : (c.env.APP_URL || 'https://drclash.vercel.app');
   c.header('Access-Control-Allow-Origin', origin);
   c.header('Access-Control-Allow-Credentials', 'true');
   c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -584,7 +588,7 @@ app.post('/api/vote', requireUserVote, async (c) => {
         c.env.DB.prepare('INSERT INTO votes (post_id, user_id, value) VALUES (?, ?, ?)').bind(post_id, user.id, value)
       );
       stmts.push(
-        c.env.DB.prepare('UPDATE posts SET upvotes = upvotes + ? WHERE id = ?').bind(value, post_id)
+        c.env.DB.prepare('UPDATE posts SET upvotes = MAX(0, upvotes + ?) WHERE id = ?').bind(value, post_id)
       );
     }
 

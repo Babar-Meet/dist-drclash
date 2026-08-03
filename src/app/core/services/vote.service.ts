@@ -366,8 +366,14 @@ export class VoteService {
       if (id !== lastUserId) {
         const wasNull = lastUserId === null;
         lastUserId = id;
-        if (!wasNull) {
+        if (wasNull) {
+          this.postData.update(d => ({ ...d, confirmedVotes: new Map() }));
+          this.reloadSignal.set(Date.now());
+        } else if (id === null) {
           this.clearAll();
+        } else {
+          this.clearAll();
+          this.reloadSignal.set(Date.now());
         }
       }
     });

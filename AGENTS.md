@@ -37,7 +37,9 @@ See `DESIGN.md` for full spec
 - **Admin auth uses env vars** (`ADMIN_USERNAME`/`ADMIN_PASSWORD`), not the DB. Admin JWTs have `id: 0`, `is_admin: true`. Admin tokens are blocked from voting and user features
 - **`requireAdmin` middleware exists in `auth.ts` but is unused** — admin routes use inline `user.is_admin` check instead
 - **Secrets must be set via `wrangler secret put`**, NOT in `wrangler.toml` `[vars]` (unencrypted)
-- **Vote system uses a per-post VoteState queue** with 300ms debounce + optimistic updates + sessionStorage persistence + replay on load
+- **Vote state lives in the root `VoteService` singleton** (`src/app/core/services/vote.service.ts`), NOT in the component. It owns a per-post intent map, 300ms debounce, single-flight flush, optimistic merge (delta math: new vote +intent, switch +2*intent, unvote -fromVote), a **localStorage outbox** (key `pendingVotes`, with Safari-private-mode memory fallback), exponential backoff honoring `Retry-After`, hydrate/replay on app start, and clears state on logout. The client persists the absolute desired state (1/-1/0) BEFORE the network call.
+- **`POST /api/vote` uses an absolute-state idempotent contract**: `value` is the desired final state, and a repeated identical value is a server-side NO-OP (returns current state) so retries/replays never double-apply. The handler re-reads the count AFTER the `batch()` so the response is authoritative, and returns 500 (not 400) for internal errors. `voteRateLimit` 429s include a `Retry-After` header.
+- **Pending votes are stored in localStorage, NOT sessionStorage** - sessionStorage dies with the tab, which caused votes to be lost on refresh.
 - **No CSP header** anywhere — frontend `index.html` has none, Worker only sets X-Frame-Options/X-Content-Type-Options/Referrer-Policy/X-XSS-Protection
 
 ## Testing

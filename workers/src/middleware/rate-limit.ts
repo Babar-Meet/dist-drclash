@@ -59,6 +59,8 @@ async function voteRateLimit(c: Context, next: Next) {
     ).bind(key, windowKey).first() as { count: number } | null;
 
     if (row && row.count > max) {
+      const retryAfter = Math.max(1, (windowKey + 1) * (windowMs / 1000) - now);
+      c.header('Retry-After', String(retryAfter));
       return c.json({ error: 'Too many votes. Please slow down.' }, 429);
     }
   } catch (e) {

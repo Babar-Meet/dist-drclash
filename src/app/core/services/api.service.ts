@@ -50,10 +50,12 @@ export class ApiService {
       headers: this.headers(),
       body: body ? JSON.stringify(body) : undefined,
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
     if (!res.ok) {
-      const err = new Error(data.error || 'Request failed');
-      if (data.code) (err as any).code = data.code;
+      const err: any = new Error(data?.error || 'Request failed');
+      if (data?.code) err.code = data.code;
+      err.status = res.status;
+      err.retryAfter = res.headers?.get('Retry-After') ?? null;
       throw err;
     }
     return data;

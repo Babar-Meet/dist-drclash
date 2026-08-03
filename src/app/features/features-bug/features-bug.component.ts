@@ -1,19 +1,13 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ApiService, Post as ApiPost } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { VoteService } from '../../core/services/vote.service';
 import { DatePipe } from '@angular/common';
 
 type FilterTab = 'all' | 'feature' | 'bug' | 'done';
-
-interface VoteState {
-  intent: number | null;
-  inFlight: boolean;
-  error: string | null;
-  timer: ReturnType<typeof setTimeout> | null;
-  serverSnapshot: { upvotes: number; user_vote: number | null } | null;
-}
 
 @Component({
   selector: 'app-features-bug',
@@ -23,9 +17,14 @@ interface VoteState {
 })
 export class FeaturesBugComponent implements OnInit {
   private api = inject(ApiService);
+  private voteService = inject(VoteService);
+  private destroyRef = inject(DestroyRef);
   auth = inject(AuthService);
 
-  posts = signal<ApiPost[]>([]);
+  posts = this.voteService.posts;
+  voteErrors = this.voteService.voteErrors;
+  voteInFlight = this.voteService.voteInFlight;
+
   loading = signal(true);
   loadError = signal<string | null>(null);
   activeFilter = signal<FilterTab>('all');
@@ -38,12 +37,16 @@ export class FeaturesBugComponent implements OnInit {
   nextCursor: number | null = null;
   loadingMore = false;
 
-  private voteStates = new Map<number, VoteState>();
-  voteErrors = signal<Map<number, string>>(new Map());
-  voteInFlight = signal<Set<number>>(new Set());
-
   expandedPosts = signal<Set<number>>(new Set());
   contentLimit = 200;
+
+  constructor() {
+    toObservable(this.voteService.reloadRequested)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(postId => {
+        if (postId !== null) this.loadPosts();
+      });
+  }
 
   ngOnInit() {
     this.loadPosts();
@@ -57,9 +60,9 @@ export class FeaturesBugComponent implements OnInit {
     try {
       const { posts, nextCursor } = await this.api.getPosts(type, status, cursor);
       if (cursor) {
-        this.posts.set([...this.posts(), ...posts]);
+        this.voteService.appendServerPosts(posts);
       } else {
-        this.posts.set(posts);
+        this.voteService.setServerPosts(posts);
       }
       this.nextCursor = nextCursor;
     } catch {
@@ -69,55 +72,6 @@ export class FeaturesBugComponent implements OnInit {
     this.loadingMore = false;
     if (!cursor) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      this.replayPendingVotes();
-    }
-  }
-
-  private replayPendingVotes() {
-    const stored = sessionStorage.getItem('pendingVotes');
-    if (!stored) return;
-    try {
-      const pending: Record<number, number> = JSON.parse(stored);
-      const postMap = new Map(this.posts().map(p => [p.id, p]));
-      for (const [postIdStr, intent] of Object.entries(pending)) {
-        const postId = Number(postIdStr);
-        if (!postMap.has(postId)) continue;
-        if (intent !== -1 && intent !== 0 && intent !== 1) continue;
-
-        const state: VoteState = {
-          intent,
-          inFlight: false,
-          error: null,
-          timer: null,
-          serverSnapshot: {
-            upvotes: postMap.get(postId)!.upvotes,
-            user_vote: postMap.get(postId)!.user_vote
-          }
-        };
-        this.voteStates.set(postId, state);
-        this.applyOptimistic(postId);
-        this.flushVote(postId);
-      }
-    } catch {
-      sessionStorage.removeItem('pendingVotes');
-    }
-  }
-
-  private persistVoteState() {
-    try {
-      const pending: Record<number, number> = {};
-      for (const [postId, state] of this.voteStates) {
-        if (state.intent !== null) {
-          pending[postId] = state.intent;
-        }
-      }
-      if (Object.keys(pending).length > 0) {
-        sessionStorage.setItem('pendingVotes', JSON.stringify(pending));
-      } else {
-        sessionStorage.removeItem('pendingVotes');
-      }
-    } catch {
-      // sessionStorage quota exceeded or unavailable
     }
   }
 
@@ -135,115 +89,7 @@ export class FeaturesBugComponent implements OnInit {
 
   vote(postId: number, value: number) {
     if (!this.auth.user()) return;
-
-    const post = this.posts().find(p => p.id === postId);
-    if (!post) return;
-
-    let state = this.voteStates.get(postId);
-    if (!state) {
-      state = { intent: null, inFlight: false, error: null, timer: null, serverSnapshot: null };
-      this.voteStates.set(postId, state);
-    }
-
-    state.error = null;
-    this.voteErrors.update(m => { const n = new Map(m); n.delete(postId); return n; });
-
-    if (!state.serverSnapshot) {
-      state.serverSnapshot = { upvotes: post.upvotes, user_vote: post.user_vote };
-    } else if (state.intent !== null) {
-      const currentPost = this.posts().find(p => p.id === postId);
-      if (currentPost) {
-        state.serverSnapshot = { upvotes: currentPost.upvotes, user_vote: currentPost.user_vote };
-      }
-    }
-
-    const currentVote = state.intent ?? state.serverSnapshot.user_vote;
-    if (currentVote === value) value = 0;
-
-    state.intent = value;
-    this.applyOptimistic(postId);
-    this.persistVoteState();
-
-    if (state.timer) clearTimeout(state.timer);
-    state.timer = setTimeout(() => this.flushVote(postId), 300);
-  }
-
-  private applyOptimistic(postId: number) {
-    const state = this.voteStates.get(postId);
-    if (!state || state.intent === null || !state.serverSnapshot) return;
-
-    const server = state.serverSnapshot;
-    const intent = state.intent;
-    const fromVote = server.user_vote ?? 0;
-    let delta: number;
-
-    if (intent === 0) {
-      delta = -fromVote;
-    } else if (fromVote === 0) {
-      delta = intent;
-    } else {
-      delta = intent * 2;
-    }
-
-    this.posts.update(posts => posts.map(p =>
-      p.id === postId
-        ? { ...p, upvotes: Math.max(0, server.upvotes + delta), user_vote: intent === 0 ? null : intent }
-        : p
-    ));
-  }
-
-  private async flushVote(postId: number) {
-    const state = this.voteStates.get(postId);
-    if (!state || state.intent === null || state.inFlight) return;
-
-    state.inFlight = true;
-    this.voteInFlight.update(s => { const n = new Set(s); n.add(postId); return n; });
-    state.timer = null;
-    const intentSent = state.intent;
-
-    try {
-      const result = await this.api.vote(postId, intentSent);
-
-      if (state.intent !== intentSent) {
-        state.inFlight = false;
-        this.voteInFlight.update(s => { const n = new Set(s); n.delete(postId); return n; });
-        const post = this.posts().find(p => p.id === postId);
-        if (post) {
-          state.serverSnapshot = { upvotes: post.upvotes, user_vote: post.user_vote };
-        }
-        this.flushVote(postId);
-      } else {
-        const currentPost = this.posts().find(p => p.id === postId);
-        this.posts.update(posts => posts.map(p =>
-          p.id === postId
-            ? { ...p, upvotes: result.upvotes, user_vote: currentPost?.user_vote ?? p.user_vote }
-            : p
-        ));
-
-        state.intent = null;
-        state.serverSnapshot = null;
-        state.inFlight = false;
-        this.voteInFlight.update(s => { const n = new Set(s); n.delete(postId); return n; });
-        this.persistVoteState();
-      }
-    } catch (e: any) {
-      if (state.serverSnapshot) {
-        this.posts.update(posts => posts.map(p =>
-          p.id === postId
-            ? { ...p, upvotes: state.serverSnapshot!.upvotes, user_vote: state.serverSnapshot!.user_vote }
-            : p
-        ));
-      }
-
-      state.inFlight = false;
-      this.voteInFlight.update(s => { const n = new Set(s); n.delete(postId); return n; });
-      state.intent = null;
-      state.serverSnapshot = null;
-      state.timer = null;
-      state.error = e.message || 'Vote failed';
-      this.voteErrors.update(m => { const n = new Map(m); n.set(postId, state.error!); return n; });
-      this.persistVoteState();
-    }
+    this.voteService.applyVote(postId, value);
   }
 
   toggleExpand(postId: number) {
@@ -284,7 +130,7 @@ export class FeaturesBugComponent implements OnInit {
     this.submitting.set(true);
     try {
       const { post } = await this.api.createPost(this.formType, this.formTitle, this.formContent);
-      this.posts.set([post, ...this.posts()]);
+      this.voteService.prependServerPost(post);
       this.closeForm();
     } catch (e: any) {
       this.formError = e.message;

@@ -114,10 +114,13 @@ export class MockApiHandler {
       let newUpvotes = post.upvotes;
 
       if (value === 0) {
+        if (post.user_vote !== null) {
+          newUpvotes = post.upvotes - post.user_vote;
+        }
         newUserVote = null;
       } else if (post.user_vote === value) {
-        newUpvotes = post.upvotes - value;
-        newUserVote = null;
+        // Idempotent no-op: requested state already matches.
+        newUserVote = value;
       } else if (post.user_vote === -value) {
         newUpvotes = post.upvotes + value * 2;
         newUserVote = value;

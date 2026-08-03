@@ -246,6 +246,72 @@ test.describe('Persistence across navigation', () => {
   });
 });
 
+// ─── 4.5. RAPID TOGGLE + NAVIGATION ROBUSTNESS ───
+
+test.describe('Rapid toggle + navigation robustness', () => {
+  test('rapid up/down/up toggle then refresh converges to upvote', async ({ page }) => {
+    const postId = 106;
+    const before = await getVoteDisplay(page, postId);
+
+    await clickVote(page, postId, 'up');
+    await clickVote(page, postId, 'down');
+    await clickVote(page, postId, 'up');
+    await page.reload();
+    await page.waitForSelector('.card', { timeout: 5000 });
+    await page.waitForTimeout(600);
+
+    const after = await getVoteDisplay(page, postId);
+    expect(after.userVote).toBe(1);
+    expect(after.count).toBe(before.count + 1);
+  });
+
+  test('rapid up/down toggle then filter switch has no double count', async ({ page }) => {
+    const postId = 107;
+    const before = await getVoteDisplay(page, postId);
+
+    await clickVote(page, postId, 'up');
+    await clickVote(page, postId, 'down');
+    await page.locator('.filter-chip', { hasText: 'Bugs' }).click();
+    await page.waitForTimeout(300);
+    await page.locator('.filter-chip', { hasText: 'All' }).click();
+    await page.waitForSelector('.card', { timeout: 5000 });
+    await page.waitForTimeout(600);
+
+    const after = await getVoteDisplay(page, postId);
+    expect(after.userVote).toBe(-1);
+    expect(after.count).toBe(before.count - 1);
+  });
+
+  test('rapid toggle on a post then switching to a tab where it is hidden still registers', async ({ page }) => {
+    const postId = 108;
+    await clickVote(page, postId, 'up');
+    await clickVote(page, postId, 'down');
+
+    await page.locator('.filter-chip', { hasText: 'Features' }).click();
+    await page.waitForTimeout(700);
+    await page.locator('.filter-chip', { hasText: 'All' }).click();
+    await page.waitForSelector('.card', { timeout: 5000 });
+    await page.waitForTimeout(400);
+
+    const state = await getVoteDisplay(page, postId);
+    expect(state.userVote).toBe(-1);
+  });
+
+  test('failed vote is retried with backoff and converges after recovery', async ({ page }) => {
+    const postId = 109;
+    const before = await getVoteDisplay(page, postId);
+    mock.setFailNextVote(true);
+    await clickVote(page, postId, 'up');
+    await page.waitForTimeout(400);
+    expect((await getVoteDisplay(page, postId)).userVote).toBe(1);
+
+    await page.waitForTimeout(3000);
+    const after = await getVoteDisplay(page, postId);
+    expect(after.userVote).toBe(1);
+    expect(after.count).toBe(before.count + 1);
+  });
+});
+
 // ─── 5. CONCURRENT VOTING ───
 
 test.describe('Concurrent voting on multiple posts', () => {

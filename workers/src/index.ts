@@ -531,7 +531,13 @@ app.post('/api/posts', requireAuth, requireUserAccount, async (c) => {
 app.post('/api/vote', requireUserVote, async (c) => {
   try {
     const user = getAuthUser(c)!;
-    const { post_id, value } = await c.req.json();
+    let body: any;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'Invalid JSON body.' }, 400);
+    }
+    const { post_id, value } = body;
 
     if (!post_id || value === undefined || value === null) {
       return c.json({ error: 'post_id and value required.' }, 400);
@@ -551,8 +557,6 @@ app.post('/api/vote', requireUserVote, async (c) => {
     ).bind(post_id, user.id).first<any>();
 
     const stmts: any[] = [];
-    let newUpvotes = post.upvotes;
-    let newUserVote: number | null = existing?.value ?? null;
 
     if (value === 0) {
       if (existing) {
@@ -562,19 +566,11 @@ app.post('/api/vote', requireUserVote, async (c) => {
         stmts.push(
           c.env.DB.prepare('UPDATE posts SET upvotes = MAX(0, upvotes - ?) WHERE id = ?').bind(existing.value, post_id)
         );
-        newUpvotes = Math.max(0, post.upvotes - existing.value);
-        newUserVote = null;
       }
     } else if (existing) {
       if (existing.value === value) {
-        stmts.push(
-          c.env.DB.prepare('DELETE FROM votes WHERE id = ?').bind(existing.id)
-        );
-        stmts.push(
-          c.env.DB.prepare('UPDATE posts SET upvotes = MAX(0, upvotes - ?) WHERE id = ?').bind(value, post_id)
-        );
-        newUpvotes = Math.max(0, post.upvotes - value);
-        newUserVote = null;
+        // Idempotent no-op: the requested state already matches. Replays and
+        // retries converge instead of toggling.
       } else {
         stmts.push(
           c.env.DB.prepare('UPDATE votes SET value = ?, created_at = datetime(\'now\') WHERE id = ?').bind(value, existing.id)
@@ -582,8 +578,6 @@ app.post('/api/vote', requireUserVote, async (c) => {
         stmts.push(
           c.env.DB.prepare('UPDATE posts SET upvotes = MAX(0, upvotes + ?) WHERE id = ?').bind(value * 2, post_id)
         );
-        newUpvotes = Math.max(0, post.upvotes + value * 2);
-        newUserVote = value;
       }
     } else {
       stmts.push(
@@ -592,18 +586,24 @@ app.post('/api/vote', requireUserVote, async (c) => {
       stmts.push(
         c.env.DB.prepare('UPDATE posts SET upvotes = upvotes + ? WHERE id = ?').bind(value, post_id)
       );
-      newUpvotes = post.upvotes + value;
-      newUserVote = value;
     }
 
     if (stmts.length > 0) {
       await c.env.DB.batch(stmts);
     }
 
-    return c.json({ upvotes: newUpvotes, user_vote: newUserVote });
+    // Re-read truth after the batch so the returned count is authoritative even
+    // under concurrent requests.
+    const updated = await c.env.DB.prepare('SELECT upvotes FROM posts WHERE id = ?')
+      .bind(post_id).first<any>();
+    const updatedVote = await c.env.DB.prepare(
+      'SELECT value FROM votes WHERE post_id = ? AND user_id = ?'
+    ).bind(post_id, user.id).first<any>();
+
+    return c.json({ upvotes: updated?.upvotes ?? 0, user_vote: updatedVote?.value ?? null });
   } catch (e) {
     console.error('Vote error:', e);
-    return c.json({ error: 'Invalid request.' }, 400);
+    return c.json({ error: 'Server error.' }, 500);
   }
 });
 

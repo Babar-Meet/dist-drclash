@@ -395,8 +395,15 @@ app.get('/api/posts', async (c) => {
   const authUser = getAuthUser(c);
   const userId = authUser?.id || 0;
 
+  // The votes table is the single source of truth for counts. The posts.upvotes
+  // counter column drifted from real votes under older buggy code (replays,
+  // outbox), so we derive the count from SUM(value) instead. Displayed counts
+  // are floored at 0; ordering uses the raw sum so genuinely downvoted posts
+  // sink below neutral ones.
   let query = `
-    SELECT p.*, u.username,
+    SELECT p.id, p.user_id, p.type, p.status, p.title, p.content, p.created_at, u.username,
+      MAX(0, COALESCE((SELECT SUM(v.value) FROM votes v WHERE v.post_id = p.id), 0)) as upvotes,
+      COALESCE((SELECT SUM(v.value) FROM votes v WHERE v.post_id = p.id), 0) as raw_upvotes,
       (SELECT v.value FROM votes v WHERE v.post_id = p.id AND v.user_id = ?) as user_vote
     FROM posts p
     JOIN users u ON u.id = p.user_id
@@ -414,7 +421,7 @@ app.get('/api/posts', async (c) => {
     params.push(cursor);
   }
 
-  query += ' ORDER BY p.upvotes DESC, p.id DESC LIMIT ?';
+  query += ' ORDER BY COALESCE((SELECT SUM(v.value) FROM votes v WHERE v.post_id = p.id), 0) DESC, p.id DESC LIMIT ?';
   params.push(limit + 1);
 
   const { results } = await c.env.DB.prepare(query).bind(...params).all<any>();
@@ -458,7 +465,9 @@ app.get('/api/posts/:id', async (c) => {
   const userId = authUser?.id || 0;
 
   const post = await c.env.DB.prepare(`
-    SELECT p.*, u.username,
+    SELECT p.id, p.user_id, p.type, p.status, p.title, p.content, p.created_at, u.username,
+      MAX(0, COALESCE((SELECT SUM(v.value) FROM votes v WHERE v.post_id = p.id), 0)) as upvotes,
+      COALESCE((SELECT SUM(v.value) FROM votes v WHERE v.post_id = p.id), 0) as raw_upvotes,
       (SELECT v.value FROM votes v WHERE v.post_id = p.id AND v.user_id = ?) as user_vote
     FROM posts p
     JOIN users u ON u.id = p.user_id
@@ -535,6 +544,59 @@ app.post('/api/posts', requireAuth, requireUserAccount, async (c) => {
 // VOTE ROUTES
 // ──────────────────────────────────────
 
+export interface VoteResult {
+  upvotes: number;
+  raw_upvotes: number;
+  user_vote: number | null;
+}
+
+// Pure, unit-testable vote application. Absolute-state, idempotent contract:
+// value is the desired final state. Only the votes row is mutated (single-row
+// atomic upsert), so concurrent requests can never corrupt a shared counter.
+// The count is derived by re-reading SUM(value) after the write, so the votes
+// table is the single source of truth.
+export async function applyVote(
+  db: D1Database,
+  postId: number,
+  userId: number,
+  value: number
+): Promise<VoteResult | { error: string }> {
+  if (value !== 0 && value !== 1 && value !== -1) {
+    return { error: 'Value must be -1, 0, or 1.' };
+  }
+
+  const post = await db.prepare('SELECT id FROM posts WHERE id = ?').bind(postId).first<any>();
+  if (!post) {
+    return { error: 'Post not found.' };
+  }
+
+  const stmts: any[] = [];
+  if (value === 0) {
+    stmts.push(
+      db.prepare('DELETE FROM votes WHERE post_id = ? AND user_id = ?').bind(postId, userId)
+    );
+  } else {
+    stmts.push(
+      db.prepare(
+        `INSERT INTO votes (post_id, user_id, value) VALUES (?, ?, ?)
+         ON CONFLICT(post_id, user_id) DO UPDATE SET value = excluded.value, created_at = datetime('now')`
+      ).bind(postId, userId, value)
+    );
+  }
+
+  await db.batch(stmts);
+
+  const sum = await db.prepare(
+    'SELECT COALESCE(SUM(value), 0) as s FROM votes WHERE post_id = ?'
+  ).bind(postId).first<any>();
+  const updatedVote = await db.prepare(
+    'SELECT value FROM votes WHERE post_id = ? AND user_id = ?'
+  ).bind(postId, userId).first<any>();
+
+  const raw = sum?.s ?? 0;
+  return { upvotes: Math.max(0, raw), raw_upvotes: raw, user_vote: updatedVote?.value ?? null };
+}
+
 app.post('/api/vote', requireUserVote, async (c) => {
   try {
     const user = getAuthUser(c)!;
@@ -549,65 +611,13 @@ app.post('/api/vote', requireUserVote, async (c) => {
     if (!post_id || value === undefined || value === null) {
       return c.json({ error: 'post_id and value required.' }, 400);
     }
-    if (value !== 0 && value !== 1 && value !== -1) {
-      return c.json({ error: 'Value must be -1, 0, or 1.' }, 400);
+
+    const result = await applyVote(c.env.DB, post_id, user.id, value);
+    if ('error' in result) {
+      if (result.error === 'Post not found.') return c.json({ error: result.error }, 404);
+      return c.json({ error: result.error }, 400);
     }
-
-    const post = await c.env.DB.prepare('SELECT id, upvotes FROM posts WHERE id = ?')
-      .bind(post_id).first<any>();
-    if (!post) {
-      return c.json({ error: 'Post not found.' }, 404);
-    }
-
-    const existing = await c.env.DB.prepare(
-      'SELECT id, value FROM votes WHERE post_id = ? AND user_id = ?'
-    ).bind(post_id, user.id).first<any>();
-
-    const stmts: any[] = [];
-
-    if (value === 0) {
-      if (existing) {
-        stmts.push(
-          c.env.DB.prepare('DELETE FROM votes WHERE id = ?').bind(existing.id)
-        );
-        stmts.push(
-          c.env.DB.prepare('UPDATE posts SET upvotes = MAX(0, upvotes - ?) WHERE id = ?').bind(existing.value, post_id)
-        );
-      }
-    } else if (existing) {
-      if (existing.value === value) {
-        // Idempotent no-op: the requested state already matches. Replays and
-        // retries converge instead of toggling.
-      } else {
-        stmts.push(
-          c.env.DB.prepare('UPDATE votes SET value = ?, created_at = datetime(\'now\') WHERE id = ?').bind(value, existing.id)
-        );
-        stmts.push(
-          c.env.DB.prepare('UPDATE posts SET upvotes = MAX(0, upvotes + ?) WHERE id = ?').bind(value * 2, post_id)
-        );
-      }
-    } else {
-      stmts.push(
-        c.env.DB.prepare('INSERT INTO votes (post_id, user_id, value) VALUES (?, ?, ?)').bind(post_id, user.id, value)
-      );
-      stmts.push(
-        c.env.DB.prepare('UPDATE posts SET upvotes = MAX(0, upvotes + ?) WHERE id = ?').bind(value, post_id)
-      );
-    }
-
-    if (stmts.length > 0) {
-      await c.env.DB.batch(stmts);
-    }
-
-    // Re-read truth after the batch so the returned count is authoritative even
-    // under concurrent requests.
-    const updated = await c.env.DB.prepare('SELECT upvotes FROM posts WHERE id = ?')
-      .bind(post_id).first<any>();
-    const updatedVote = await c.env.DB.prepare(
-      'SELECT value FROM votes WHERE post_id = ? AND user_id = ?'
-    ).bind(post_id, user.id).first<any>();
-
-    return c.json({ upvotes: updated?.upvotes ?? 0, user_vote: updatedVote?.value ?? null });
+    return c.json(result);
   } catch (e) {
     console.error('Vote error:', e);
     return c.json({ error: 'Server error.' }, 500);

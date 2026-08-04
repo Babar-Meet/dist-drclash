@@ -25,6 +25,7 @@ export interface Post {
   title: string;
   content: string;
   upvotes: number;
+  raw_upvotes?: number;
   username: string;
   user_vote: number | null;
   created_at: string;
@@ -90,7 +91,7 @@ export class ApiService {
 
   // Voting
   vote(postId: number, value: number) {
-    return this.post<{ upvotes: number; user_vote: number | null }>('/api/vote', { post_id: postId, value });
+    return this.post<{ upvotes: number; raw_upvotes?: number; user_vote: number | null }>('/api/vote', { post_id: postId, value });
   }
 
   // Profile

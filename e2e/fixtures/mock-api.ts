@@ -2,6 +2,7 @@ export class MockApiHandler {
   constructor() {
     this.posts = new Map();
     this.votes = [];
+    this.otherVotes = new Map();
     this.nextId = 100;
     this.failNextVote = false;
     this.slowNextVote = false;
@@ -14,6 +15,7 @@ export class MockApiHandler {
   seedPosts() {
     for (let i = 0; i < 55; i++) {
       const id = this.nextId++;
+      const upvotes = 10000 - i * 100;
       this.posts.set(id, {
         id,
         user_id: 1,
@@ -21,11 +23,16 @@ export class MockApiHandler {
         status: 'current',
         title: `Post ${i}`,
         content: 'Test content',
-        upvotes: 10000 - i * 100,
+        upvotes,
+        raw_upvotes: upvotes,
         username: 'tester',
         user_vote: null,
         created_at: new Date().toISOString(),
       });
+      // Baseline of votes from "other" (non test-user) voters, matching the
+      // seeded counter. The test user's votes live in this.votes and are
+      // summed on top, mirroring the real worker's votes table.
+      this.otherVotes.set(id, upvotes);
     }
   }
 
@@ -37,6 +44,7 @@ export class MockApiHandler {
   reset() {
     this.posts.clear();
     this.votes = [];
+    this.otherVotes.clear();
     this.nextId = 100;
     this.failNextVote = false;
     this.slowNextVote = false;
@@ -77,6 +85,7 @@ export class MockApiHandler {
           created_at: new Date().toISOString(),
         };
         this.posts.set(id, post);
+        this.otherVotes.set(id, 0);
         return route.fulfill({
           status: 200, contentType: 'application/json',
           body: JSON.stringify({ post }),
@@ -119,39 +128,26 @@ export class MockApiHandler {
         return route.fulfill({ status: 404, body: JSON.stringify({ error: 'Post not found' }) });
       }
 
-      let newUserVote;
-      let newUpvotes = post.upvotes;
-
-      if (value === 0) {
-        if (post.user_vote !== null) {
-          newUpvotes = post.upvotes - post.user_vote;
-        }
-        newUserVote = null;
-      } else if (post.user_vote === value) {
-        // Idempotent no-op: requested state already matches.
-        newUserVote = value;
-      } else if (post.user_vote === -value) {
-        newUpvotes = post.upvotes + value * 2;
-        newUserVote = value;
-      } else if (post.user_vote === null) {
-        newUpvotes = post.upvotes + value;
-        newUserVote = value;
-      } else {
-        newUpvotes = post.upvotes + value;
-        newUserVote = value;
-      }
-
+      // Mirror the real worker: only mutate the test user's vote, then derive
+      // the count from the votes array summed on top of the "other voters"
+      // baseline. The votes array is the source of truth for the user's own
+      // vote, so rapid clicks / replays can never drift the count.
       const existingIdx = this.votes.findIndex(v => v.post_id === post_id);
-      if (value === 0 && existingIdx >= 0) {
-        this.votes.splice(existingIdx, 1);
-      } else if (value !== 0 && existingIdx >= 0) {
+      if (value === 0) {
+        if (existingIdx >= 0) this.votes.splice(existingIdx, 1);
+      } else if (existingIdx >= 0) {
         this.votes[existingIdx].value = value;
-      } else if (value !== 0) {
+      } else {
         this.votes.push({ post_id, user_id: 1, value });
       }
 
-      post.upvotes = Math.max(0, newUpvotes);
-      post.user_vote = newUserVote;
+      const ownSum = this.votes
+        .filter(v => v.post_id === post_id)
+        .reduce((acc, v) => acc + v.value, 0);
+      const raw = (this.otherVotes.get(post_id) ?? 0) + ownSum;
+      post.upvotes = Math.max(0, raw);
+      post.raw_upvotes = raw;
+      post.user_vote = value === 0 ? null : value;
 
       if (this.slowNextVote) {
         this.slowNextVote = false;
@@ -161,7 +157,7 @@ export class MockApiHandler {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ upvotes: post.upvotes, user_vote: post.user_vote }),
+        body: JSON.stringify({ upvotes: post.upvotes, raw_upvotes: post.raw_upvotes, user_vote: post.user_vote }),
       });
     });
 
